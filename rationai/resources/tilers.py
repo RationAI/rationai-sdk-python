@@ -6,7 +6,6 @@ from typing import Literal, TypeVarTuple
 import numpy as np
 from numpy.typing import NDArray
 
-
 Dims = TypeVarTuple("Dims")
 
 

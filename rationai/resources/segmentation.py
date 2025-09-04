@@ -5,6 +5,8 @@ from aiohttp import ClientSession
 from numpy.typing import NDArray
 from openslide import OpenSlide
 
+from rationai.resources.tilers import grid_tiles
+
 
 class Tile(TypedDict):
     data: NDArray[np.uint8]
@@ -30,21 +32,50 @@ class AsyncNucleiSegmentation:
     @overload
     async def __call__(
         self, input: NDArray[np.uint8], model: Literal["lsp-detr"]
-    ) -> Result: ...
+    ) -> Result | list[Result]: ...
 
     @overload
     async def __call__(
         self, input: Iterable[Tile], model: Literal["lsp-detr"]
-    ) -> Result: ...
+    ) -> list[Result]: ...
 
     async def __call__(
-        self, input: NDArray[np.uint8] | Iterable[Tile], model: Literal["lsp-detr"]
-    ) -> Result:
+        self,
+        input: OpenSlide | NDArray[np.uint8] | Iterable[Tile],
+        model: Literal["lsp-detr"],
+    ) -> Result | list[Result]:
         if isinstance(input, np.ndarray):
-            return await self._process_tile(input, model)
+            h, w = input.shape[:2]
+            max_tile_size = self.tile_sizes[-1]
 
+            if h <= max_tile_size and w <= max_tile_size:
+                return await self._process_tile(input, model)  # compatible with model
+
+            tiles: list[Tile] = []  # picture larger than max tile size
+            for coord in grid_tiles(
+                slide_extent=(h, w),
+                tile_extent=(max_tile_size, max_tile_size),
+                stride=(max_tile_size, max_tile_size),
+                last="shift",
+            ):
+                y, x = coord
+                tile_data = input[y : y + max_tile_size, x : x + max_tile_size]
+                tiles.append({"data": tile_data, "x": x, "y": y})
+
+            # Process all tiles and return a list of results
+            results: list[Result] = []
+            for tile in tiles:
+                results.append(await self._process_tile(tile["data"], model))
+            return results
+
+        if isinstance(input, OpenSlide):
+            raise NotImplementedError("Processing OpenSlide input is not implemented.")
+
+        # iterable of tiles
+        results: list[Result] = []
         for tile in input:
-            await self._process_tile(tile["data"], model)
+            results.append(await self._process_tile(tile["data"], model))
+        return results
 
     async def _process_tile(
         self, tile: NDArray[np.uint8], model: Literal["lsp-detr"]
@@ -52,7 +83,8 @@ class AsyncNucleiSegmentation:
         h, w = tile.shape[:2]
 
         tile_size = next(
-            (size for size in self.tile_sizes if size >= max(h, w)), self.tile_sizes[-1]
+            (size for size in self.tile_sizes if size >= max(h, w)),
+            self.tile_sizes[-1],
         )
 
         tile = np.pad(
@@ -62,6 +94,8 @@ class AsyncNucleiSegmentation:
             constant_values=0,
         )
 
-        response = await self.session.post(f"/{model}/{tile_size}", data=tile.tobytes())
-        response.raise_for_status()
-        return response.json()
+        async with self.session.post(
+            f"/{model}/{tile_size}", data=tile.tobytes()
+        ) as response:
+            response.raise_for_status()
+            return await response.json()
