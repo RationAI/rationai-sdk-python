@@ -3,7 +3,7 @@ from functools import cached_property
 import numpy as np
 from aiohttp import ClientSession
 
-from rationai.resources.segmentation import AsyncNucleiSegmentation
+from rationai.segmentation.segmentation import AsyncNucleiSegmentation
 
 
 class AsyncClient:
