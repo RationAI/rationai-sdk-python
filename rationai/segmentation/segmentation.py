@@ -20,6 +20,14 @@ class Result(TypedDict):
 
 
 class AsyncNucleiSegmentation:
+    """
+    Asynchronous nuclei segmentation for in-memory data.
+    Supports:
+      - Single NDArray images
+      - Large images split into tiles
+      - Iterable of Tile dictionaries
+    """
+
     def __init__(self, session: ClientSession):
         self.session = session
         self.tile_sizes = [256, 512, 1024, 2048]
@@ -42,44 +50,57 @@ class AsyncNucleiSegmentation:
     async def __call__(
         self,
         input: OpenSlide | NDArray[np.uint8] | Iterable[Tile],
-        model: Literal["lsp-detr"],
+        model: Literal["lsp-detr"] = "lsp-detr",
     ) -> Result | list[Result]:
         if isinstance(input, np.ndarray):
-            h, w = input.shape[:2]
-            max_tile_size = self.tile_sizes[-1]
-
-            if h <= max_tile_size and w <= max_tile_size:
-                return await self._process_tile(input, model)  # compatible with model
-
-            tiles: list[Tile] = []  # picture larger than max tile size
-            for coord in grid_tiles(
-                slide_extent=(h, w),
-                tile_extent=(max_tile_size, max_tile_size),
-                stride=(max_tile_size, max_tile_size),
-                last="shift",
-            ):
-                y, x = coord
-                tile_data = input[y : y + max_tile_size, x : x + max_tile_size]
-                tiles.append({"data": tile_data, "x": x, "y": y})
-
-            # Process all tiles and return a list of results
-            results: list[Result] = []
-            for tile in tiles:
-                results.append(await self._process_tile(tile["data"], model))
-            return results
+            return await self._process_ndarray(input, model)
 
         if isinstance(input, OpenSlide):
-            raise NotImplementedError("Processing OpenSlide input is not implemented.")
+            raise NotImplementedError("OpenSlide input is not implemented yet.")
 
         # iterable of tiles
+        return await self._process_tiles(input, model)
+
+    async def _process_ndarray(
+        self, image: NDArray[np.uint8], model: Literal["lsp-detr"]
+    ) -> Result | list[Result]:
+        """Process a single image or split into tiles if too large."""
+        h, w = image.shape[:2]
+        max_tile_size = self.tile_sizes[-1]
+
+        if h <= max_tile_size and w <= max_tile_size:
+            return await self._process_tile(image, model)
+
+        # Split large image into tiles
+        tiles: list[Tile] = []
+        for y, x in grid_tiles(
+            slide_extent=(h, w),
+            tile_extent=(max_tile_size, max_tile_size),
+            stride=(max_tile_size, max_tile_size),
+            last="shift",
+        ):
+            tile_data = image[y : y + max_tile_size, x : x + max_tile_size]
+            tiles.append({"data": tile_data, "x": x, "y": y})
+
+        # Process all tiles sequentially
         results: list[Result] = []
-        for tile in input:
+        for tile in tiles:
+            results.append(await self._process_tile(tile["data"], model))
+        return results
+
+    async def _process_tiles(
+        self, tiles: Iterable[Tile], model: Literal["lsp-detr"]
+    ) -> list[Result]:
+        """Process an iterable of Tile dictionaries."""
+        results: list[Result] = []
+        for tile in tiles:
             results.append(await self._process_tile(tile["data"], model))
         return results
 
     async def _process_tile(
         self, tile: NDArray[np.uint8], model: Literal["lsp-detr"]
     ) -> Result:
+        """Pad tile and send to server for segmentation."""
         h, w = tile.shape[:2]
 
         tile_size = next(

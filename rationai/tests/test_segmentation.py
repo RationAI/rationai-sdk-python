@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from rationai.resources.segmentation import AsyncNucleiSegmentation
+from rationai.segmentation.segmentation import AsyncNucleiSegmentation
 
 class DummySession:
     def post(self, url, data):
