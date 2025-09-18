@@ -1,3 +1,4 @@
+import asyncio
 from typing import Iterable, Literal, TypedDict, overload
 
 import numpy as np
@@ -92,10 +93,9 @@ class AsyncNucleiSegmentation:
         self, tiles: Iterable[Tile], model: Literal["lsp-detr"]
     ) -> list[Result]:
         """Process an iterable of Tile dictionaries."""
-        results: list[Result] = []
-        for tile in tiles:
-            results.append(await self._process_tile(tile["data"], model))
-        return results
+        return await asyncio.gather(
+            *[self._process_tile(tile["data"], model) for tile in tiles]
+        )
 
     async def _process_tile(
         self, tile: NDArray[np.uint8], model: Literal["lsp-detr"]
