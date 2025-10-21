@@ -1,15 +1,14 @@
-from functools import cached_property
-
 import numpy as np
 from aiohttp import ClientSession
 
-from rationai.segmentation.segmentation import AsyncNucleiSegmentation
+from rationai.segmentation.core import AsyncNucleiSegmentation
 
 
 class AsyncClient:
     def __init__(self, base_url: str) -> None:
         self._base_url = base_url
         self._session: ClientSession | None = None
+        self._nuclei_segmentation: AsyncNucleiSegmentation | None = None
 
     async def __aenter__(self):
         self._session = ClientSession(
@@ -21,14 +20,18 @@ class AsyncClient:
     async def __aexit__(self, exc_type, exc, tb):
         if self._session:
             await self._session.close()
+            self._session = None
+            self._nuclei_segmentation = None
 
-    @cached_property
+    @property
     def nuclei_segmentation(self) -> AsyncNucleiSegmentation:
         if not self._session:
             raise RuntimeError(
                 "Client session not initialized. Use `async with AsyncClient(...)`."
             )
-        return AsyncNucleiSegmentation(self._session)
+        if self._nuclei_segmentation is None:
+            self._nuclei_segmentation = AsyncNucleiSegmentation(self._session)
+        return self._nuclei_segmentation
 
 
 async def main():
