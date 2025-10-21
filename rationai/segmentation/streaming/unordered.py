@@ -5,7 +5,8 @@ import numpy as np
 from aiohttp import ClientSession
 from numpy.typing import NDArray
 
-from ..segmentation import AsyncNucleiSegmentation, Result
+from ..core import AsyncNucleiSegmentation
+from ..types import Result
 
 
 async def stream_tiles(
@@ -27,14 +28,21 @@ async def stream_tiles(
 
     Yields:
         Result objects as they complete (not in input order)
+
+    Raises:
+        Exception: if any tile processing fails
     """
     segmenter = AsyncNucleiSegmentation(session, max_concurrent=max_concurrent)
 
     # Queue to hold pending tasks
     pending = set()
+    error: Exception | None = None
 
     try:
         async for tile in tile_generator:
+            if error:  # If we've seen an error, stop accepting new tiles
+                break
+
             # Create task for this tile (uses built-in retry logic)
             task = asyncio.create_task(segmenter._process_tile_with_retry(tile, model))
             pending.add(task)
@@ -49,19 +57,27 @@ async def stream_tiles(
                         result = await completed_task
                         yield result
                     except Exception as e:
-                        print(f"Error processing tile (skipping): {e}")
+                        error = e  # Save the error
+                        # Cancel remaining tasks and stop processing
+                        for task in pending:
+                            task.cancel()
+                        raise  # Re-raise the error
 
-        # Process remaining tasks
-        while pending:
-            done, pending = await asyncio.wait(
-                pending, return_when=asyncio.FIRST_COMPLETED
-            )
-            for completed_task in done:
-                try:
-                    result = await completed_task
-                    yield result
-                except Exception as e:
-                    print(f"Error processing tile (skipping): {e}")
+        # Process remaining tasks if no error occurred
+        if not error:
+            while pending:
+                done, pending = await asyncio.wait(
+                    pending, return_when=asyncio.FIRST_COMPLETED
+                )
+                for completed_task in done:
+                    try:
+                        result = await completed_task
+                        yield result
+                    except Exception:
+                        # Cancel remaining tasks and stop processing
+                        for task in pending:
+                            task.cancel()
+                        raise  # Re-raise the error
 
     except asyncio.CancelledError:
         print("Stream processing cancelled, cleaning up...")

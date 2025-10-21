@@ -5,7 +5,8 @@ import numpy as np
 from aiohttp import ClientSession
 from numpy.typing import NDArray
 
-from ..segmentation import AsyncNucleiSegmentation, Result
+from ..core import AsyncNucleiSegmentation
+from ..types import Result
 
 
 async def stream_tiles_ordered(
