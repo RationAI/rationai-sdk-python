@@ -36,26 +36,22 @@ class AsyncNucleiSegmentation:
         ],
         model: Literal["lsp-detr"] = "lsp-detr",
         *,
-        stream_mode: Literal["auto", "unordered", "ordered", "batched"] = "auto",
+        stream_mode: Literal["auto", "unordered", "ordered"] = "auto",
     ) -> Union[Result, List[Result], AsyncIterable[Result]]:
         # --- Streaming modes ---
         from rationai.segmentation.streaming import (
             stream_tiles,
-            stream_tiles_batched,
             stream_tiles_ordered,
         )
 
         if hasattr(input, "__aiter__") or stream_mode in {
             "unordered",
             "ordered",
-            "batched",
         }:
             tile_gen = cast(AsyncIterable[NDArray[np.uint8]], input)
             if stream_mode == "ordered":
                 return stream_tiles_ordered(self.session, tile_gen, model=model)
-            elif stream_mode == "batched":
-                return stream_tiles_batched(self.session, tile_gen, model=model)
-            else:
+            else:  # unordered or auto
                 return stream_tiles(self.session, tile_gen, model=model)
         # --- Batched mode (explicit or auto-detect) ---
         if isinstance(input, list):
@@ -110,9 +106,11 @@ class AsyncNucleiSegmentation:
     async def _process_tile_with_retry(
         self, tile: NDArray[np.uint8], model: Literal["lsp-detr"]
     ) -> Result:
+        """Process a single tile with retries and error handling."""
         async with self.semaphore:
             for attempt, delay in enumerate([0] + self.retry_delays):
                 if attempt > 0:
+                    print(f"Retrying after {delay}s delay (attempt {attempt + 1})")
                     await asyncio.sleep(delay)
                 try:
                     return await asyncio.wait_for(
@@ -123,16 +121,18 @@ class AsyncNucleiSegmentation:
                         raise Exception(
                             f"Request timed out after {len(self.retry_delays)} retries"
                         )
+                    continue
                 except Exception as e:
                     if attempt == len(self.retry_delays):
-                        raise Exception(
-                            f"Failed after {len(self.retry_delays)} retries: {str(e)}"
-                        )
+                        raise  # Re-raise the original error for better debugging
+                    print(f"Attempt {attempt + 1} failed: {str(e)}")
+                    continue
             raise Exception(f"Failed after {len(self.retry_delays)} retries")
 
     async def _process_tile(
         self, tile: NDArray[np.uint8], model: Literal["lsp-detr"]
     ) -> Result:
+        """Process a single tile through the segmentation API."""
         h, w = tile.shape[:2]
         # Use minimum tile size needed or max available
         tile_size = min(
@@ -164,6 +164,6 @@ class AsyncNucleiSegmentation:
             ) as response:
                 response.raise_for_status()  # This can raise ClientResponseError
                 return await response.json()
-        except Exception as e:
-            # Re-raise the exception to be handled by retry logic
-            raise Exception(f"Failed after processing tile: {str(e)}") from e
+        except Exception:
+            # Pass through the original error for better error handling
+            raise

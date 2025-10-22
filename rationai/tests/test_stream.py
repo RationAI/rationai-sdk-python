@@ -113,41 +113,11 @@ async def test_ordered_streaming(mock_tiles):
     )
 
 
-@pytest.mark.asyncio
-async def test_batched_streaming(mock_tiles):
-    """Test batched streaming processes tiles in batches."""
-    seg = AsyncNucleiSegmentation(cast(ClientSession, DummySession(delay=0.02)))
-    tile_gen = async_tile_generator(mock_tiles, delay=0.01)
-    streamer = await seg(tile_gen, stream_mode="batched")
-
-    results = []
-    batch_count = 0
-
-    async for batch in cast(AsyncIterator[List[Dict[str, Any]]], streamer):
-        batch_count += 1
-        if isinstance(batch, list):
-            results.extend(batch)
-        else:
-            results.append(batch)
-
-    # Should have all results
-    assert len(results) == len(mock_tiles), (
-        f"Expected {len(mock_tiles)} results, got {len(results)}"
-    )
-    # Should have been processed in at least one batch
-    assert batch_count > 0
-    # Each result should have expected data
-    assert all(isinstance(r, dict) for r in results), (
-        f"Not all results are dicts: {results}"
-    )
-    assert all("polygons" in r and "embeddings" in r for r in results)
-
-
 # @pytest.mark.asyncio
 # async def test_stream_error_handling():
 #     """Test error handling in streaming modes."""
 #     error_tiles = [np.zeros((256, 256, 3), dtype=np.uint8) for _ in range(3)]
-#     session = DummySession(delay=0.01, error_on=[2])  # Error on second request
+#     session = DummySession(delay=0.01, error_on=[1])  # Error on first request
 #     seg = AsyncNucleiSegmentation(cast(ClientSession, session))
 #     tile_gen = async_tile_generator(error_tiles, delay=0.01)
 #     streamer = await seg(tile_gen, stream_mode="unordered")
@@ -156,21 +126,17 @@ async def test_batched_streaming(mock_tiles):
 #     error_caught = False
 
 #     try:
-#         # Process tiles until error
 #         async for result in cast(AsyncIterator[Dict[str, Any]], streamer):
 #             results.append(result)
-#             print(f"Processed request {len(results)}, session count: {session.request_count}")
-
 #     except Exception as e:
 #         print(f"Error caught: {e}")
-#         assert "Simulated error" in str(e), f"Unexpected error type: {e}"
+#         assert "Simulated error" in str(e), f"Unexpected error type: {str(e)}"
 #         error_caught = True
 #     else:
-#         assert False, "Should have raised an error on the second request"
+#         assert False, "Should have raised an error"
 
 #     assert error_caught, "Expected to catch a simulated error"
-#     assert session.request_count >= 2, f"Should have made at least 2 requests, got {session.request_count}"
-#     assert len(results) <= 1, f"Expected at most 1 successful result before error, got {len(results)}"
+#     assert len(results) == 0, "Should not have processed any results"
 
 
 @pytest.mark.asyncio
