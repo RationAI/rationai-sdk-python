@@ -5,9 +5,8 @@ import numpy as np
 from aiohttp import ClientSession
 from numpy.typing import NDArray
 from openslide import OpenSlide
+from ratiopath.tiling import grid_tiles
 
-from rationai.resources.tilers import grid_tiles
-from rationai.segmentation.batch import batch_process
 from rationai.segmentation.types import Result
 
 
@@ -53,26 +52,35 @@ class AsyncNucleiSegmentation:
                 return stream_tiles_ordered(self.session, tile_gen, model=model)
             else:  # unordered or auto
                 return stream_tiles(self.session, tile_gen, model=model)
-        # --- Batched mode (explicit or auto-detect) ---
+
+        # --- List of images ---
         if isinstance(input, list):
             # Convert list[Tile] → list[NDArray]
             if input and isinstance(input[0], dict):
                 ndarray_list = [tile["data"] for tile in input]  # type: ignore
             else:
                 ndarray_list = cast(List[NDArray[np.uint8]], input)
-            return await batch_process(self.session, ndarray_list, model=model)
+
+            # Process all images concurrently
+            return await asyncio.gather(
+                *[self._process_tile_with_retry(img, model) for img in ndarray_list]
+            )
+
         # --- OpenSlide input ---
         is_openslide = isinstance(input, OpenSlide) or (
             hasattr(input, "__class__") and input.__class__.__name__ == "OpenSlide"
         )
         if is_openslide:
             raise NotImplementedError("OpenSlide input not yet supported")
+
         # --- Single NDArray ---
         if isinstance(input, np.ndarray):
             return await self._process_ndarray(input, model)
+
         # --- Iterable of Tile dicts ---
         if isinstance(input, (list, tuple)) and all(isinstance(x, dict) for x in input):
             return await self._process_tiles(input, model)
+
         raise TypeError(f"Unsupported input type: {type(input)}")
 
     async def _process_ndarray(
@@ -82,6 +90,7 @@ class AsyncNucleiSegmentation:
         max_tile_size = self.tile_sizes[-1]
         if h <= max_tile_size and w <= max_tile_size:
             return await self._process_tile_with_retry(image, model)
+
         tiles: list[Tile] = []
         for y, x in grid_tiles(
             slide_extent=(h, w),
@@ -91,6 +100,7 @@ class AsyncNucleiSegmentation:
         ):
             tile_data = image[y : y + max_tile_size, x : x + max_tile_size]
             tiles.append(Tile(data=tile_data, x=x, y=y))
+
         results = await asyncio.gather(
             *[self._process_tile_with_retry(tile["data"], model) for tile in tiles]
         )
@@ -108,6 +118,7 @@ class AsyncNucleiSegmentation:
     ) -> Result:
         """Process a single tile with retries and error handling."""
         async with self.semaphore:
+            last_exception = None
             for attempt, delay in enumerate([0] + self.retry_delays):
                 if attempt > 0:
                     print(f"Retrying after {delay}s delay (attempt {attempt + 1})")
@@ -116,18 +127,24 @@ class AsyncNucleiSegmentation:
                     return await asyncio.wait_for(
                         self._process_tile(tile, model), timeout=self.timeout
                     )
-                except asyncio.TimeoutError:
+                except asyncio.TimeoutError as e:
+                    last_exception = e
                     if attempt == len(self.retry_delays):
                         raise Exception(
                             f"Request timed out after {len(self.retry_delays)} retries"
-                        )
+                        ) from e
                     continue
                 except Exception as e:
+                    last_exception = e
                     if attempt == len(self.retry_delays):
-                        raise  # Re-raise the original error for better debugging
+                        raise Exception(
+                            f"Failed after {len(self.retry_delays)} retries"
+                        ) from e
                     print(f"Attempt {attempt + 1} failed: {str(e)}")
                     continue
-            raise Exception(f"Failed after {len(self.retry_delays)} retries")
+            raise Exception(
+                f"Failed after {len(self.retry_delays)} retries"
+            ) from last_exception
 
     async def _process_tile(
         self, tile: NDArray[np.uint8], model: Literal["lsp-detr"]
@@ -165,5 +182,5 @@ class AsyncNucleiSegmentation:
                 response.raise_for_status()  # This can raise ClientResponseError
                 return await response.json()
         except Exception:
-            # Pass through the original error for better error handling
+            # Pass through the original error for better debugging
             raise
