@@ -6,13 +6,13 @@ from rationai.segmentation.core import AsyncNucleiSegmentation
 
 class AsyncClient:
     def __init__(self, base_url: str) -> None:
-        self._base_url = base_url
+        self.base_url = base_url
         self._session: ClientSession | None = None
         self._nuclei_segmentation: AsyncNucleiSegmentation | None = None
 
     async def __aenter__(self):
         self._session = ClientSession(
-            base_url=self._base_url,
+            base_url=self.base_url,
             headers={"Content-Type": "application/octet-stream"},
         )
         return self
