@@ -1,5 +1,5 @@
 import asyncio
-from typing import AsyncGenerator, AsyncIterable, Literal, Optional
+from typing import AsyncGenerator, AsyncIterable, Optional
 
 import numpy as np
 from aiohttp import ClientSession
@@ -12,7 +12,7 @@ from rationai.segmentation.types import Result
 async def stream_tiles_ordered(
     session: ClientSession,
     tile_generator: AsyncIterable[NDArray[np.uint8]],
-    model: Literal["lsp-detr"] = "lsp-detr",
+    model: str = "lsp-detr",
     max_concurrent: int = 5,
 ) -> AsyncGenerator[Result, None]:
     """
@@ -27,9 +27,9 @@ async def stream_tiles_ordered(
     Yields:
         Result objects in the same order as input tiles
     """
-    segmenter = AsyncNucleiSegmentation(session, max_concurrent=max_concurrent)
+    segmenter = AsyncNucleiSegmentation(max_concurrent=max_concurrent)
+    segmenter._session = session
 
-    # Queue to maintain order
     result_queue: asyncio.Queue[tuple[int, Optional[Result], Optional[Exception]]] = (
         asyncio.Queue()
     )
@@ -44,7 +44,6 @@ async def stream_tiles_ordered(
             print(f"Tile {index} failed after all retries: {e}")
             await result_queue.put((index, None, e))
 
-    # Start processing tiles
     tile_index = 0
     active_tasks = set()
     generator_exhausted = False
@@ -57,7 +56,6 @@ async def stream_tiles_ordered(
                 active_tasks.add(task)
                 tile_index += 1
 
-                # Limit concurrent tasks
                 if len(active_tasks) >= max_concurrent:
                     done, _ = await asyncio.wait(
                         active_tasks, return_when=asyncio.FIRST_COMPLETED
@@ -71,13 +69,10 @@ async def stream_tiles_ordered(
         finally:
             generator_exhausted = True
 
-    # Start producer task
     producer_task = asyncio.create_task(producer())
 
-    # Yield results in order
     try:
         while True:
-            # Check if we're done
             if (
                 generator_exhausted
                 and not active_tasks
@@ -96,12 +91,10 @@ async def stream_tiles_ordered(
                     next_index += 1
                     continue
 
-                # Store result if not next in sequence
                 if index != next_index:
                     if result is not None:
                         pending_results[index] = result
                 else:
-                    # Yield this result and any consecutive ones
                     if result is not None:
                         yield result
                     next_index += 1
@@ -117,7 +110,6 @@ async def stream_tiles_ordered(
         print("Ordered stream cancelled, cleaning up...")
         raise
     finally:
-        # Clean up
         if not producer_task.done():
             producer_task.cancel()
             try:
@@ -127,6 +119,5 @@ async def stream_tiles_ordered(
         for task in active_tasks:
             if not task.done():
                 task.cancel()
-        # Wait for all tasks to complete cancellation
         if active_tasks:
             await asyncio.gather(*active_tasks, return_exceptions=True)
