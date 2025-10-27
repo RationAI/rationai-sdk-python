@@ -1,5 +1,7 @@
-from .ordered import stream_tiles_ordered
-from .unordered import stream_tiles
+"""Streaming processing modes for nuclei segmentation."""
+
+from rationai.segmentation.streaming.ordered import stream_tiles_ordered
+from rationai.segmentation.streaming.unordered import stream_tiles
 
 __all__ = [
     "stream_tiles",
