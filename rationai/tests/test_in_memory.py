@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import numpy as np
 import pytest
 from aiohttp import ClientSession
+from ratiopath.tiling import grid_tiles
 
-from rationai.resources.tilers import grid_tiles
 from rationai.segmentation.core import AsyncNucleiSegmentation
 
 
@@ -36,8 +36,11 @@ def large_image():
 
 @pytest.fixture
 def segmentation(mock_session):
-    """Create AsyncNucleiSegmentation instance."""
-    return AsyncNucleiSegmentation(mock_session, max_concurrent=5)
+    """Create AsyncNucleiSegmentation instance with mocked session."""
+    client = AsyncNucleiSegmentation(base_url="http://localhost:8000", max_concurrent=5)
+    # Inject the mock session for testing
+    client._session = mock_session
+    return client
 
 
 # Tests for single NDArray input
@@ -75,7 +78,7 @@ class TestProcessNDArray:
     async def test_large_image_multiple_tiles(self, segmentation, large_image):
         """Test processing a large image that requires multiple tiles."""
         # Calculate how many tiles we expect (3000x3000 split into 2048x2048)
-        expected_tiles = len(
+        expected_tiles_count = len(
             list(
                 grid_tiles(
                     slide_extent=(3000, 3000),
@@ -102,7 +105,7 @@ class TestProcessNDArray:
             results = await segmentation._process_ndarray(large_image, "lsp-detr")
 
         assert isinstance(results, list)
-        assert len(results) == 4
+        assert len(results) == expected_tiles_count
         assert all(r is not None for r in results)
 
     @pytest.mark.asyncio
@@ -118,7 +121,7 @@ class TestProcessNDArray:
         segmentation.session.post = MagicMock()
         segmentation.session.post.return_value.__aenter__.return_value = mock_response
 
-        result = await segmentation(small_odd_image)
+        _result = await segmentation(small_odd_image)
 
         # Verify post was called
         assert segmentation.session.post.called
