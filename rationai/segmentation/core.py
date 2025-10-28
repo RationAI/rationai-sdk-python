@@ -211,7 +211,7 @@ class AsyncNucleiSegmentation:
 
             try:
                 async with self.session.post(
-                    f"{self._base_url}{model}/{tile_size}",
+                    f"{self._base_url}/{model.lstrip('/')}/{tile_size}",
                     data=tile.tobytes(),
                 ) as response:
                     response.raise_for_status()
@@ -225,7 +225,7 @@ class AsyncNucleiSegmentation:
 
             try:
                 async with self.session.post(
-                    f"{self._base_url}{model}",
+                    f"{self._base_url}/{model.lstrip('/')}",
                     json=payload,
                 ) as response:
                     response.raise_for_status()
