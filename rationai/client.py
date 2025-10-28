@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, ClassVar
+
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 import aiohttp
 import numpy as np
 from PIL import Image
+
+
+logger = logging.getLogger(__name__)
 
 
 class ModelConfig:
@@ -56,7 +63,7 @@ class RationAIClient:
     """
 
     DEFAULT_TIMEOUT = 30
-    DEFAULT_RETRIES = [1, 2, 5]
+    DEFAULT_RETRIES: ClassVar[list[int]] = [1, 2, 5]
 
     def __init__(
         self, base_url: str, *, timeout: int = DEFAULT_TIMEOUT, max_concurrent: int = 5
@@ -131,7 +138,7 @@ class RationAIClient:
         async with self._semaphore:
             last_error = None
 
-            for attempt, delay in enumerate([0] + self._retries):
+            for attempt, delay in enumerate([0, *self._retries]):
                 if delay > 0:
                     await asyncio.sleep(delay)
 
@@ -155,13 +162,13 @@ class RationAIClient:
 
                     last_error = e
                     if attempt < len(self._retries):
-                        print(f"[Warning] Attempt {attempt + 1} failed: {e}")
+                        logger.warning("Attempt %d failed: %s", attempt + 1, e)
                     continue
 
                 except Exception as e:
                     last_error = e
                     if attempt < len(self._retries):
-                        print(f"[Warning] Attempt {attempt + 1} failed: {e}")
+                        logger.warning("Attempt %d failed: %s", attempt + 1, e)
                     continue
 
             raise RuntimeError(
@@ -200,13 +207,15 @@ class RationAIClient:
 
 
 async def main():
+    """Example usage of RationAIClient."""
+    logging.basicConfig(level=logging.INFO)
     test_image = np.zeros((224, 224, 3), dtype=np.uint8)
     test_image[50:150, 50:150] = 255
 
     async with RationAIClient("http://127.0.0.1:8001") as client:
         prostate = client.model("prostate")
         result = await prostate.predict(test_image)
-        print("Prostate result:", result)
+        logger.info("Prostate result: %s", result)
 
 
 if __name__ == "__main__":

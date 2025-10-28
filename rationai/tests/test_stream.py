@@ -15,7 +15,7 @@ T = TypeVar("T")
 
 # Test fixtures
 class DummySession:
-    def __init__(self, delay: float = 0.01, error_on: list[int] = None):  # type: ignore
+    def __init__(self, delay: float = 0.01, error_on: list[int] | None = None):
         self.delay = delay
         self.error_on = error_on or []
         self.request_count = 0
@@ -92,7 +92,7 @@ async def test_unordered_streaming(mock_tiles):
     # Should have a result for each tile
     assert len(results) == len(mock_tiles)
     # Order might be different from input due to async processing
-    assert set(r["embeddings"][0][0] for r in results) == set(
+    assert {r["embeddings"][0][0] for r in results} == set(
         range(1, len(mock_tiles) + 1)
     )
 

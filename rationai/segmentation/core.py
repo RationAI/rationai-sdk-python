@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from collections.abc import AsyncIterable, Iterable
 from typing import cast
 
@@ -9,6 +10,9 @@ from openslide import OpenSlide
 from ratiopath.tiling import grid_tiles
 
 from rationai.segmentation.types import Result, Tile
+
+
+logger = logging.getLogger(__name__)
 
 
 class AsyncNucleiSegmentation:
@@ -74,7 +78,7 @@ class AsyncNucleiSegmentation:
 
         if isinstance(input, list):
             if input and isinstance(input[0], dict):
-                ndarray_list = [tile["data"] for tile in input]  # type: ignore
+                ndarray_list = [tile["data"] for tile in input]  # type: ignore[index]
             else:
                 ndarray_list = cast("list[NDArray[np.uint8]]", input)
 
@@ -130,9 +134,11 @@ class AsyncNucleiSegmentation:
         """Process a single tile with retries and error handling."""
         async with self.semaphore:
             last_exception = None
-            for attempt, delay in enumerate([0] + self.retry_delays):
+            for attempt, delay in enumerate([0, *self.retry_delays]):
                 if attempt > 0:
-                    print(f"Retrying after {delay}s delay (attempt {attempt + 1})")
+                    logger.warning(
+                        "Retrying after %ss delay (attempt %d)", delay, attempt + 1
+                    )
                     await asyncio.sleep(delay)
                 try:
                     return await asyncio.wait_for(
@@ -151,7 +157,7 @@ class AsyncNucleiSegmentation:
                         raise Exception(
                             f"Failed after {len(self.retry_delays)} retries"
                         ) from e
-                    print(f"Attempt {attempt + 1} failed: {e!s}")
+                    logger.warning("Attempt %d failed: %s", attempt + 1, e)
                     continue
             raise Exception(
                 f"Failed after {len(self.retry_delays)} retries"

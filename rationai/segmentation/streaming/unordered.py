@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from collections.abc import AsyncGenerator, AsyncIterable
 
 import numpy as np
@@ -7,6 +8,9 @@ from numpy.typing import NDArray
 
 from rationai.segmentation.core import AsyncNucleiSegmentation
 from rationai.segmentation.types import Result
+
+
+logger = logging.getLogger(__name__)
 
 
 async def stream_tiles(
@@ -74,7 +78,7 @@ async def stream_tiles(
                         raise
 
     except asyncio.CancelledError:
-        print("Stream processing cancelled, cleaning up...")
+        logger.debug("Stream processing cancelled, cleaning up...")
         for task in pending:
             task.cancel()
         if pending:

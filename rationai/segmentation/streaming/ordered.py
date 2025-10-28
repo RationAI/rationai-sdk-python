@@ -1,4 +1,6 @@
 import asyncio
+import contextlib
+import logging
 from collections.abc import AsyncGenerator, AsyncIterable
 
 import numpy as np
@@ -7,6 +9,9 @@ from numpy.typing import NDArray
 
 from rationai.segmentation.core import AsyncNucleiSegmentation
 from rationai.segmentation.types import Result
+
+
+logger = logging.getLogger(__name__)
 
 
 async def stream_tiles_ordered(
@@ -40,7 +45,7 @@ async def stream_tiles_ordered(
             result = await segmenter._process_tile_with_retry(tile, model)
             await result_queue.put((index, result, None))
         except Exception as e:
-            print(f"Tile {index} failed after all retries: {e}")
+            logger.warning("Tile %d failed after all retries: %s", index, e)
             await result_queue.put((index, None, e))
 
     tile_index = 0
@@ -61,10 +66,10 @@ async def stream_tiles_ordered(
                     )
                     active_tasks.difference_update(done)
         except asyncio.CancelledError:
-            print("Producer cancelled")
+            logger.debug("Producer cancelled")
             raise
         except Exception as e:
-            print(f"Error in tile generator: {e}")
+            logger.error("Error in tile generator: %s", e)
         finally:
             generator_exhausted = True
 
@@ -86,7 +91,7 @@ async def stream_tiles_ordered(
                 )
 
                 if error:
-                    print(f"Skipping tile {index} due to error")
+                    logger.warning("Skipping tile %d due to error", index)
                     next_index += 1
                     continue
 
@@ -106,15 +111,12 @@ async def stream_tiles_ordered(
                 continue
 
     except asyncio.CancelledError:
-        print("Ordered stream cancelled, cleaning up...")
-        raise
+        logger.debug("Ordered stream cancelled, cleaning up...")
     finally:
         if not producer_task.done():
             producer_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await producer_task
-            except asyncio.CancelledError:
-                pass
         for task in active_tasks:
             if not task.done():
                 task.cancel()
