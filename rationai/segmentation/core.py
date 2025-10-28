@@ -23,13 +23,14 @@ class AsyncNucleiSegmentation:
         timeout: float = 30,
         max_concurrent: int = 5,
     ):
-        self._base_url = base_url.rstrip("/")
-        self._session: ClientSession | None = None
-        self._owns_session = True
+        self._base_url = base_url.rstrip("/")  # Remove trailing slash
+        self._session: ClientSession | None = None  # Lazy initialization
+        self._owns_session = True  # Track if we created the session (for cleanup)
 
+        # Supported tile sizes for the segmentation model
         self.tile_sizes = [256, 512, 1024, 2048]
-        self.semaphore = asyncio.Semaphore(max_concurrent)
-        self.retry_delays = [1, 2, 5]
+        self.semaphore = asyncio.Semaphore(max_concurrent)  # Limit concurrent requests
+        self.retry_delays = [1, 2, 5]  # Exponential backoff delays in seconds
         self.timeout = timeout
 
     @property
@@ -69,6 +70,7 @@ class AsyncNucleiSegmentation:
             stream_tiles_ordered,
         )
 
+        # Handle streaming input (async iterator)
         if hasattr(input, "__aiter__") or stream_mode in {"unordered", "ordered"}:
             tile_gen = cast("AsyncIterable[NDArray[np.uint8]]", input)
             if stream_mode == "ordered":
@@ -76,12 +78,14 @@ class AsyncNucleiSegmentation:
             else:
                 return stream_tiles(self.session, tile_gen, model=model)
 
+        # Handle list of tiles (either Tile dicts or NDArrays)
         if isinstance(input, list):
             if input and isinstance(input[0], dict):
                 ndarray_list = [tile["data"] for tile in input]  # type: ignore[index]
             else:
                 ndarray_list = cast("list[NDArray[np.uint8]]", input)
 
+            # Process all tiles concurrently
             return await asyncio.gather(
                 *[self._process_tile_with_retry(img, model) for img in ndarray_list]
             )
@@ -103,17 +107,21 @@ class AsyncNucleiSegmentation:
     async def _process_ndarray(
         self, image: NDArray[np.uint8], model: str
     ) -> Result | list[Result]:
+        """Process a numpy array image (small images directly, large images via tiling)."""
         h, w = image.shape[:2]
-        max_tile_size = self.tile_sizes[-1]
+        max_tile_size = self.tile_sizes[-1]  # 2048
+
+        # Small enough to process directly
         if h <= max_tile_size and w <= max_tile_size:
             return await self._process_tile_with_retry(image, model)
 
+        # Large image - split into tiles
         tiles: list[Tile] = []
         for y, x in grid_tiles(
             slide_extent=(h, w),
             tile_extent=(max_tile_size, max_tile_size),
             stride=(max_tile_size, max_tile_size),
-            last="shift",
+            last="shift",  # Shift last tile to avoid partial tiles
         ):
             tile_data = image[y : y + max_tile_size, x : x + max_tile_size]
             tiles.append(Tile(data=tile_data, x=x, y=y))
@@ -132,8 +140,9 @@ class AsyncNucleiSegmentation:
         self, tile: NDArray[np.uint8], model: str
     ) -> Result:
         """Process a single tile with retries and error handling."""
-        async with self.semaphore:
+        async with self.semaphore:  # Limit concurrent requests
             last_exception = None
+            # Retry with exponential backoff
             for attempt, delay in enumerate([0, *self.retry_delays]):
                 if attempt > 0:
                     logger.warning(
@@ -164,8 +173,12 @@ class AsyncNucleiSegmentation:
             ) from last_exception
 
     async def _process_tile(self, tile: NDArray[np.uint8], model: str) -> Result:
-        """Process a single tile through the segmentation API."""
+        """Process a single tile through the segmentation API.
+
+        Selects appropriate tile size from [256, 512, 1024, 2048] and pads/crops as needed.
+        """
         h, w = tile.shape[:2]
+        # Select smallest tile size that fits the image dimensions
         tile_size = min(
             next(
                 (size for size in self.tile_sizes if size >= max(h, w)),
@@ -174,10 +187,12 @@ class AsyncNucleiSegmentation:
             self.tile_sizes[-1],
         )
 
+        # Crop if tile is larger than selected tile_size
         if h > tile_size or w > tile_size:
             tile = tile[:tile_size, :tile_size]
             h, w = tile.shape[:2]
 
+        # Pad if tile is smaller than selected tile_size
         if h < tile_size or w < tile_size:
             tile = np.pad(
                 tile,

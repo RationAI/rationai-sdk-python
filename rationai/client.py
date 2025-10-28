@@ -68,11 +68,15 @@ class RationAIClient:
     def __init__(
         self, base_url: str, *, timeout: int = DEFAULT_TIMEOUT, max_concurrent: int = 5
     ):
-        self.base_url = base_url.rstrip("/")
+        self.base_url = base_url.rstrip(
+            "/"
+        )  # Remove trailing slash for consistent URLs
         self._timeout = aiohttp.ClientTimeout(total=timeout)
-        self._session: aiohttp.ClientSession | None = None
-        self._semaphore = asyncio.Semaphore(max_concurrent)
-        self._retries = self.DEFAULT_RETRIES
+        self._session: aiohttp.ClientSession | None = (
+            None  # Lazy initialization in __aenter__
+        )
+        self._semaphore = asyncio.Semaphore(max_concurrent)  # Limit concurrent requests
+        self._retries = self.DEFAULT_RETRIES  # Retry delays in seconds
 
     async def __aenter__(self) -> RationAIClient:
         self._session = aiohttp.ClientSession(base_url=self.base_url)
@@ -132,12 +136,14 @@ class RationAIClient:
         payload = self._preprocess_image(img, config)
 
         endpoint = config.endpoint
+        # DETR models support dynamic tile sizes via URL path
         if tile_size and "detr" in endpoint.lower():
             endpoint = f"{endpoint}/{tile_size}"
 
-        async with self._semaphore:
+        async with self._semaphore:  # Limit concurrent requests
             last_error = None
 
+            # Retry with exponential backoff
             for attempt, delay in enumerate([0, *self._retries]):
                 if delay > 0:
                     await asyncio.sleep(delay)
@@ -155,11 +161,13 @@ class RationAIClient:
                     ) from e
 
                 except aiohttp.ClientResponseError as e:
+                    # Client errors (4xx) shouldn't be retried
                     if 400 <= e.status < 500:
                         raise RuntimeError(
                             f"Client error {e.status}: {e.message}"
                         ) from e
 
+                    # Server errors (5xx) - retry with backoff
                     last_error = e
                     if attempt < len(self._retries):
                         logger.warning("Attempt %d failed: %s", attempt + 1, e)
@@ -177,8 +185,10 @@ class RationAIClient:
 
     @staticmethod
     def _load_image(image: np.ndarray | str | Path) -> np.ndarray:
+        """Load and normalize image to RGB format."""
         if isinstance(image, (str, Path)):
             image = np.array(Image.open(image).convert("RGB"))
+        # Convert grayscale to RGB by duplicating channels
         if image.ndim == 2:
             image = np.stack([image] * 3, axis=-1)
         elif image.ndim != 3 or image.shape[2] != 3:
@@ -187,6 +197,11 @@ class RationAIClient:
 
     @staticmethod
     def _preprocess_image(image: np.ndarray, config: ModelConfig) -> dict:
+        """Prepare image for model inference.
+
+        Converts image from HWC (Height, Width, Channels) format to NCHW
+        (Batch, Channels, Height, Width) format expected by the model.
+        """
         if config.preprocessor:
             return {"input": config.preprocessor(image)}
 
@@ -200,9 +215,10 @@ class RationAIClient:
                     config.input_size, Image.Resampling.BILINEAR
                 )
             )
+        # Transpose: (H, W, C) -> (C, H, W), add batch dimension -> (1, C, H, W)
         image = image.transpose(2, 0, 1)[None, :, :, :].astype(np.float32)
         if config.normalize:
-            image /= 255.0
+            image /= 255.0  # Normalize to [0, 1] range
         return {"input": image.tolist()}
 
 

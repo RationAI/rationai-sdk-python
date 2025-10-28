@@ -34,13 +34,15 @@ async def stream_tiles_ordered(
     segmenter = AsyncNucleiSegmentation(max_concurrent=max_concurrent)
     segmenter._session = session
 
+    # Queue for results: (index, result, error)
     result_queue: asyncio.Queue[tuple[int, Result | None, Exception | None]] = (
         asyncio.Queue()
     )
-    next_index = 0
-    pending_results: dict[int, Result] = {}
+    next_index = 0  # Next index we want to yield
+    pending_results: dict[int, Result] = {}  # Results that arrived out of order
 
     async def process_tile(tile: NDArray[np.uint8], index: int):
+        """Process a single tile and put result in queue with its index."""
         try:
             result = await segmenter._process_tile_with_retry(tile, model)
             await result_queue.put((index, result, None))
@@ -53,6 +55,7 @@ async def stream_tiles_ordered(
     generator_exhausted = False
 
     async def producer():
+        """Read tiles from generator and spawn processing tasks."""
         nonlocal tile_index, generator_exhausted
         try:
             async for tile in tile_generator:
@@ -60,6 +63,7 @@ async def stream_tiles_ordered(
                 active_tasks.add(task)
                 tile_index += 1
 
+                # Limit concurrent processing
                 if len(active_tasks) >= max_concurrent:
                     done, _ = await asyncio.wait(
                         active_tasks, return_when=asyncio.FIRST_COMPLETED
@@ -77,6 +81,7 @@ async def stream_tiles_ordered(
 
     try:
         while True:
+            # Exit when all tiles processed and no pending work
             if (
                 generator_exhausted
                 and not active_tasks
@@ -95,20 +100,23 @@ async def stream_tiles_ordered(
                     next_index += 1
                     continue
 
+                # Result arrived out of order - store it
                 if index != next_index:
                     if result is not None:
                         pending_results[index] = result
+                # Result is next in sequence - yield it and any pending results
                 else:
                     if result is not None:
                         yield result
                     next_index += 1
 
+                    # Yield any buffered results that are now in order
                     while next_index in pending_results:
                         yield pending_results.pop(next_index)
                         next_index += 1
 
             except TimeoutError:
-                continue
+                continue  # No results ready, check exit condition again
 
     except asyncio.CancelledError:
         logger.debug("Ordered stream cancelled, cleaning up...")

@@ -38,17 +38,18 @@ async def stream_tiles(
     segmenter = AsyncNucleiSegmentation(max_concurrent=max_concurrent)
     segmenter._session = session
 
-    pending = set()
-    error: Exception | None = None
+    pending = set()  # Set of active tasks
+    error: Exception | None = None  # Track first error to stop processing
 
     try:
         async for tile in tile_generator:
-            if error:
+            if error:  # Stop accepting new tiles if error occurred
                 break
 
             task = asyncio.create_task(segmenter._process_tile_with_retry(tile, model))
             pending.add(task)
 
+            # Limit concurrent tasks - yield results as they complete
             if len(pending) >= max_concurrent:
                 done, pending = await asyncio.wait(
                     pending, return_when=asyncio.FIRST_COMPLETED
@@ -56,13 +57,14 @@ async def stream_tiles(
                 for completed_task in done:
                     try:
                         result = await completed_task
-                        yield result
+                        yield result  # Yield immediately (unordered)
                     except Exception as e:
                         error = e
                         for task in pending:
                             task.cancel()
                         raise
 
+        # Process remaining tasks after generator is exhausted
         if not error:
             while pending:
                 done, pending = await asyncio.wait(
