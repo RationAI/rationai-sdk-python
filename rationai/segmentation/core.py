@@ -7,6 +7,7 @@ import numpy as np
 from aiohttp import ClientSession
 from numpy.typing import NDArray
 from openslide import OpenSlide
+from PIL import Image
 from ratiopath.tiling import grid_tiles
 
 from rationai.segmentation.types import Result, Tile
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 class AsyncNucleiSegmentation:
     def __init__(
         self,
-        base_url: str = "http://localhost:8000",
+        base_url: str = "http://127.0.0.1:8001",
         *,
         timeout: float = 30,
         max_concurrent: int = 5,
@@ -43,7 +44,7 @@ class AsyncNucleiSegmentation:
 
     async def __aenter__(self):
         if self._session is None:
-            self._session = ClientSession(base_url=self._base_url)
+            self._session = ClientSession()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -175,38 +176,78 @@ class AsyncNucleiSegmentation:
     async def _process_tile(self, tile: NDArray[np.uint8], model: str) -> Result:
         """Process a single tile through the segmentation API.
 
-        Selects appropriate tile size from [256, 512, 1024, 2048] and pads/crops as needed.
+        Supports two formats:
+        - DETR models (nuclei): raw bytes with tile size in URL
+        - JSON models (prostate): JSON payload with preprocessing
         """
-        h, w = tile.shape[:2]
-        # Select smallest tile size that fits the image dimensions
-        tile_size = min(
-            next(
-                (size for size in self.tile_sizes if size >= max(h, w)),
-                self.tile_sizes[-1],
-            ),
-            self.tile_sizes[-1],
-        )
+        # Check if this is a DETR model (uses raw bytes)
+        is_detr = "detr" in model.lower()
 
-        # Crop if tile is larger than selected tile_size
-        if h > tile_size or w > tile_size:
-            tile = tile[:tile_size, :tile_size]
+        if is_detr:
+            # DETR format: raw bytes with tile size in URL
             h, w = tile.shape[:2]
-
-        # Pad if tile is smaller than selected tile_size
-        if h < tile_size or w < tile_size:
-            tile = np.pad(
-                tile,
-                ((0, tile_size - h), (0, tile_size - w), (0, 0)),
-                mode="constant",
-                constant_values=0,
+            # Select smallest tile size that fits the image dimensions
+            tile_size = min(
+                next(
+                    (size for size in self.tile_sizes if size >= max(h, w)),
+                    self.tile_sizes[-1],
+                ),
+                self.tile_sizes[-1],
             )
 
-        try:
-            async with self.session.post(
-                f"/{model}/{tile_size}",
-                data=tile.tobytes(),
-            ) as response:
-                response.raise_for_status()
-                return await response.json()
-        except Exception:
-            raise
+            # Crop if tile is larger than selected tile_size
+            if h > tile_size or w > tile_size:
+                tile = tile[:tile_size, :tile_size]
+                h, w = tile.shape[:2]
+
+            # Pad if tile is smaller than selected tile_size
+            if h < tile_size or w < tile_size:
+                tile = np.pad(
+                    tile,
+                    ((0, tile_size - h), (0, tile_size - w), (0, 0)),
+                    mode="constant",
+                    constant_values=0,
+                )
+
+            try:
+                async with self.session.post(
+                    f"{self._base_url}{model}/{tile_size}",
+                    data=tile.tobytes(),
+                ) as response:
+                    response.raise_for_status()
+                    return await response.json()
+            except Exception:
+                raise
+
+        else:
+            # JSON format: preprocess and send as JSON
+            payload = self._preprocess_for_json(tile)
+
+            try:
+                async with self.session.post(
+                    f"{self._base_url}{model}",
+                    json=payload,
+                ) as response:
+                    response.raise_for_status()
+                    return await response.json()
+            except Exception:
+                raise
+
+    def _preprocess_for_json(self, tile: NDArray[np.uint8]) -> dict:
+        """Preprocess image for JSON-based models (e.g., prostate).
+
+        Resizes to 224x224, normalizes to [0,1], and converts to NCHW format.
+        """
+        # Resize to 224x224 (expected by prostate model)
+        if tile.shape[:2] != (224, 224):
+            tile = np.array(
+                Image.fromarray(tile).resize((224, 224), Image.Resampling.BILINEAR)
+            )
+
+        # Convert to NCHW format (batch, channels, height, width)
+        tile_nchw = tile.transpose(2, 0, 1)[None, :, :, :].astype(np.float32)
+
+        # Normalize to [0, 1]
+        tile_nchw /= 255.0
+
+        return {"input": tile_nchw.tolist()}
