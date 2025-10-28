@@ -1,5 +1,5 @@
 import asyncio
-from typing import AsyncGenerator, AsyncIterable
+from collections.abc import AsyncGenerator, AsyncIterable
 
 import numpy as np
 from aiohttp import ClientSession
@@ -15,8 +15,7 @@ async def stream_tiles(
     model: str = "lsp-detr",
     max_concurrent: int = 5,
 ) -> AsyncGenerator[Result, None]:
-    """
-    Stream tiles to the segmentation server asynchronously with concurrent processing.
+    """Stream tiles to the segmentation server asynchronously with concurrent processing.
 
     Results are yielded as soon as they're available (not necessarily in order).
 

@@ -177,7 +177,7 @@ class TestTileProcessingWithRetry:
         # Mock _process_tile to fail first time, then succeed
         with patch.object(segmentation, "_process_tile") as mock_process_tile:
             mock_process_tile.side_effect = [
-                asyncio.TimeoutError(),
+                TimeoutError(),
                 sample_result,
             ]
 
@@ -192,7 +192,7 @@ class TestTileProcessingWithRetry:
         tile = np.random.randint(0, 256, (256, 256, 3), dtype=np.uint8)
 
         with patch.object(segmentation, "_process_tile") as mock_process_tile:
-            mock_process_tile.side_effect = asyncio.TimeoutError()
+            mock_process_tile.side_effect = TimeoutError()
 
             with pytest.raises(Exception, match="timed out after"):
                 await segmentation._process_tile_with_retry(tile, "lsp-detr")

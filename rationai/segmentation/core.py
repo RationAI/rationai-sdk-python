@@ -1,5 +1,6 @@
 import asyncio
-from typing import AsyncIterable, Iterable, List, Union, cast
+from collections.abc import AsyncIterable, Iterable
+from typing import cast
 
 import numpy as np
 from aiohttp import ClientSession
@@ -50,24 +51,22 @@ class AsyncNucleiSegmentation:
 
     async def __call__(
         self,
-        input: Union[
-            OpenSlide,
-            NDArray[np.uint8],
-            Iterable[Tile],
-            List[NDArray[np.uint8]],
-            AsyncIterable[NDArray[np.uint8]],
-        ],
+        input: OpenSlide
+        | NDArray[np.uint8]
+        | Iterable[Tile]
+        | list[NDArray[np.uint8]]
+        | AsyncIterable[NDArray[np.uint8]],
         model: str = "lsp-detr",
         *,
         stream_mode: str = "auto",
-    ) -> Union[Result, List[Result], AsyncIterable[Result]]:
+    ) -> Result | list[Result] | AsyncIterable[Result]:
         from rationai.segmentation.streaming import (
             stream_tiles,
             stream_tiles_ordered,
         )
 
         if hasattr(input, "__aiter__") or stream_mode in {"unordered", "ordered"}:
-            tile_gen = cast(AsyncIterable[NDArray[np.uint8]], input)
+            tile_gen = cast("AsyncIterable[NDArray[np.uint8]]", input)
             if stream_mode == "ordered":
                 return stream_tiles_ordered(self.session, tile_gen, model=model)
             else:
@@ -77,7 +76,7 @@ class AsyncNucleiSegmentation:
             if input and isinstance(input[0], dict):
                 ndarray_list = [tile["data"] for tile in input]  # type: ignore
             else:
-                ndarray_list = cast(List[NDArray[np.uint8]], input)
+                ndarray_list = cast("list[NDArray[np.uint8]]", input)
 
             return await asyncio.gather(
                 *[self._process_tile_with_retry(img, model) for img in ndarray_list]
@@ -139,7 +138,7 @@ class AsyncNucleiSegmentation:
                     return await asyncio.wait_for(
                         self._process_tile(tile, model), timeout=self.timeout
                     )
-                except asyncio.TimeoutError as e:
+                except TimeoutError as e:
                     last_exception = e
                     if attempt == len(self.retry_delays):
                         raise Exception(
@@ -152,7 +151,7 @@ class AsyncNucleiSegmentation:
                         raise Exception(
                             f"Failed after {len(self.retry_delays)} retries"
                         ) from e
-                    print(f"Attempt {attempt + 1} failed: {str(e)}")
+                    print(f"Attempt {attempt + 1} failed: {e!s}")
                     continue
             raise Exception(
                 f"Failed after {len(self.retry_delays)} retries"

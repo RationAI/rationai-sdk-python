@@ -1,5 +1,5 @@
 import asyncio
-from typing import AsyncGenerator, AsyncIterable, Optional
+from collections.abc import AsyncGenerator, AsyncIterable
 
 import numpy as np
 from aiohttp import ClientSession
@@ -15,8 +15,7 @@ async def stream_tiles_ordered(
     model: str = "lsp-detr",
     max_concurrent: int = 5,
 ) -> AsyncGenerator[Result, None]:
-    """
-    Stream tiles with ordered output (preserves input order).
+    """Stream tiles with ordered output (preserves input order).
 
     Args:
         session: aiohttp ClientSession
@@ -30,7 +29,7 @@ async def stream_tiles_ordered(
     segmenter = AsyncNucleiSegmentation(max_concurrent=max_concurrent)
     segmenter._session = session
 
-    result_queue: asyncio.Queue[tuple[int, Optional[Result], Optional[Exception]]] = (
+    result_queue: asyncio.Queue[tuple[int, Result | None, Exception | None]] = (
         asyncio.Queue()
     )
     next_index = 0
@@ -103,7 +102,7 @@ async def stream_tiles_ordered(
                         yield pending_results.pop(next_index)
                         next_index += 1
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
 
     except asyncio.CancelledError:

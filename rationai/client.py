@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Union
+from typing import Any
 
 import aiohttp
 import numpy as np
@@ -39,15 +40,14 @@ class Model:
         self._config = config
 
     async def predict(
-        self, image: Union[np.ndarray, str, Path], tile_size: int | None = None
+        self, image: np.ndarray | str | Path, tile_size: int | None = None
     ) -> dict:
         """Send image to the model endpoint."""
         return await self._client._predict(image, self._config, tile_size=tile_size)
 
 
 class RationAIClient:
-    """
-    Async client for multiple RationAI models.
+    """Async client for multiple RationAI models.
 
     Usage:
         async with RationAIClient("http://127.0.0.1:8001") as client:
@@ -81,8 +81,7 @@ class RationAIClient:
             self._session = None
 
     def model(self, name: str, config: ModelConfig | None = None) -> Model:
-        """
-        Return a Model object for a given model name or endpoint.
+        """Return a Model object for a given model name or endpoint.
 
         Args:
             name: Pre-defined model name (from MODELS) or custom endpoint path
@@ -114,7 +113,7 @@ class RationAIClient:
 
     async def _predict(
         self,
-        image: Union[np.ndarray, str, Path],
+        image: np.ndarray | str | Path,
         config: ModelConfig,
         *,
         tile_size: int | None = None,
@@ -170,7 +169,7 @@ class RationAIClient:
             ) from last_error
 
     @staticmethod
-    def _load_image(image: Union[np.ndarray, str, Path]) -> np.ndarray:
+    def _load_image(image: np.ndarray | str | Path) -> np.ndarray:
         if isinstance(image, (str, Path)):
             image = np.array(Image.open(image).convert("RGB"))
         if image.ndim == 2:

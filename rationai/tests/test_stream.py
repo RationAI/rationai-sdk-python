@@ -1,5 +1,6 @@
 import asyncio
-from typing import Any, AsyncIterator, Dict, List, TypeVar, cast
+from collections.abc import AsyncIterator
+from typing import Any, TypeVar, cast
 
 import numpy as np
 import pytest
@@ -8,12 +9,13 @@ from numpy.typing import NDArray
 
 from rationai.segmentation.core import AsyncNucleiSegmentation
 
+
 T = TypeVar("T")
 
 
 # Test fixtures
 class DummySession:
-    def __init__(self, delay: float = 0.01, error_on: List[int] = None):  # type: ignore
+    def __init__(self, delay: float = 0.01, error_on: list[int] = None):  # type: ignore
         self.delay = delay
         self.error_on = error_on or []
         self.request_count = 0
@@ -33,7 +35,7 @@ class DummySession:
         )
 
         class DummyResponse:
-            def __init__(self, delay: float, error_on: List[int], request_num: int):
+            def __init__(self, delay: float, error_on: list[int], request_num: int):
                 self.delay = delay
                 self.error_on = error_on
                 self.request_num = request_num
@@ -61,13 +63,13 @@ class DummySession:
 
 
 @pytest.fixture
-def mock_tiles() -> List[NDArray[np.uint8]]:
+def mock_tiles() -> list[NDArray[np.uint8]]:
     """Create a sequence of test tiles."""
     return [np.full((256, 256, 3), i, dtype=np.uint8) for i in range(5)]
 
 
 async def async_tile_generator(
-    tiles: List[NDArray[np.uint8]], delay: float = 0.01
+    tiles: list[NDArray[np.uint8]], delay: float = 0.01
 ) -> AsyncIterator[NDArray[np.uint8]]:
     """Generate tiles asynchronously with a delay."""
     for tile in tiles:
@@ -79,12 +81,12 @@ async def async_tile_generator(
 async def test_unordered_streaming(mock_tiles):
     """Test unordered streaming processes tiles as they become available."""
     seg = AsyncNucleiSegmentation()
-    seg._session = cast(ClientSession, DummySession(delay=0.02))
+    seg._session = cast("ClientSession", DummySession(delay=0.02))
     tile_gen = async_tile_generator(mock_tiles, delay=0.01)
     streamer = await seg(tile_gen, stream_mode="unordered")
 
     results = []
-    async for result in cast(AsyncIterator[Dict[str, Any]], streamer):
+    async for result in cast("AsyncIterator[dict[str, Any]]", streamer):
         results.append(result)
 
     # Should have a result for each tile
@@ -99,12 +101,12 @@ async def test_unordered_streaming(mock_tiles):
 async def test_ordered_streaming(mock_tiles):
     """Test ordered streaming maintains the order of input tiles."""
     seg = AsyncNucleiSegmentation()
-    seg._session = cast(ClientSession, DummySession(delay=0.02))
+    seg._session = cast("ClientSession", DummySession(delay=0.02))
     tile_gen = async_tile_generator(mock_tiles, delay=0.01)
     streamer = await seg(tile_gen, stream_mode="ordered")
 
     results = []
-    async for result in cast(AsyncIterator[Dict[str, Any]], streamer):
+    async for result in cast("AsyncIterator[dict[str, Any]]", streamer):
         results.append(result)
 
     # Should have a result for each tile in order
@@ -145,9 +147,9 @@ async def test_ordered_streaming(mock_tiles):
 async def test_in_memory_small():
     """Test processing a single small image."""
     seg = AsyncNucleiSegmentation()
-    seg._session = cast(ClientSession, DummySession())
+    seg._session = cast("ClientSession", DummySession())
     img = np.zeros((128, 128, 3), dtype=np.uint8)  # fits in max tile
-    result = cast(Dict[str, Any], await seg(img, "lsp-detr"))
+    result = cast("dict[str, Any]", await seg(img, "lsp-detr"))
     assert "polygons" in result
     assert "embeddings" in result
 
@@ -156,8 +158,8 @@ async def test_in_memory_small():
 async def test_in_memory_large():
     """Test processing a large image that requires tiling."""
     seg = AsyncNucleiSegmentation()
-    seg._session = cast(ClientSession, DummySession())
+    seg._session = cast("ClientSession", DummySession())
     img = np.zeros((3000, 3000, 3), dtype=np.uint8)  # larger than max tile
-    results = cast(List[Dict[str, Any]], await seg(img, "lsp-detr"))
+    results = cast("list[dict[str, Any]]", await seg(img, "lsp-detr"))
     assert isinstance(results, list)
     assert all("polygons" in r for r in results)
