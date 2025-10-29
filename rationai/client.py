@@ -10,7 +10,11 @@ logger = logging.getLogger(__name__)
 
 
 class ModelConfig:
-    """Configuration for a specific model endpoint."""
+    """Configuration for a specific model endpoint.
+
+    Note: input_size, num_channels, and pixel_range are reserved for future use.
+    Currently only endpoint is used by the client.
+    """
 
     def __init__(
         self,
@@ -51,7 +55,7 @@ class Model:
         self._core = core_client
         self._endpoint = endpoint
 
-    async def predict(self, input, tile_size: int | None = None):
+    async def predict(self, input):
         """Send image to model. Delegates to core.py for all processing."""
         if isinstance(input, (str, Path)):
             import numpy as np
@@ -85,7 +89,6 @@ class RationAIClient:
         timeout: int = 30,
         max_concurrent: int = 5,
     ):
-        # Delegate to core.py for all functionality
         self._core = AsyncNucleiSegmentation(
             base_url=base_url,
             timeout=timeout,
@@ -103,12 +106,11 @@ class RationAIClient:
         """Close the HTTP session."""
         await self._core.close()
 
-    def model(self, name: str, config: ModelConfig | None = None) -> Model:
+    def model(self, name: str) -> Model:
         """Return a Model object for a given model name or endpoint.
 
         Args:
             name: Pre-defined model name (from MODELS) or custom endpoint path
-            config: Optional custom ModelConfig (ignored, for backwards compatibility)
 
         Returns:
             Model object that delegates to core.py for all processing
@@ -120,9 +122,7 @@ class RationAIClient:
             # Use custom endpoint
             custom = client.model("/my-custom-model")
         """
-        # Resolve endpoint from MODELS or use name as endpoint
         endpoint = MODELS[name].endpoint if name in MODELS else name
-
         return Model(self._core, endpoint)
 
 
