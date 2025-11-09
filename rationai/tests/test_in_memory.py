@@ -70,7 +70,7 @@ class TestProcessNDArray:
         with patch.object(
             segmentation, "_process_tile_with_retry", return_value=sample_result
         ):
-            result = await segmentation._process_ndarray(small_image, "lsp-detr")
+            result = await segmentation._process_ndarray(small_image, "lsp-detr", "raw")
 
         assert result == sample_result
 
@@ -102,7 +102,9 @@ class TestProcessNDArray:
         with patch.object(
             segmentation, "_process_tile_with_retry", side_effect=mock_side_effects
         ):
-            results = await segmentation._process_ndarray(large_image, "lsp-detr")
+            results = await segmentation._process_ndarray(
+                large_image, "lsp-detr", "raw"
+            )
 
         assert isinstance(results, list)
         assert len(results) == expected_tiles_count
@@ -157,7 +159,7 @@ class TestTileProcessingWithRetry:
         segmentation.session.post = MagicMock()
         segmentation.session.post.return_value.__aenter__.return_value = mock_response
 
-        result = await segmentation._process_tile_with_retry(tile, "lsp-detr")
+        result = await segmentation._process_tile_with_retry(tile, "lsp-detr", "raw")
 
         assert result == sample_result
         assert segmentation.session.post.call_count == 1
@@ -181,7 +183,9 @@ class TestTileProcessingWithRetry:
                 sample_result,
             ]
 
-            result = await segmentation._process_tile_with_retry(tile, "lsp-detr")
+            result = await segmentation._process_tile_with_retry(
+                tile, "lsp-detr", "raw"
+            )
 
         assert result == sample_result
         assert mock_process_tile.call_count == 2
@@ -195,7 +199,7 @@ class TestTileProcessingWithRetry:
             mock_process_tile.side_effect = TimeoutError()
 
             with pytest.raises(Exception, match="timed out after"):
-                await segmentation._process_tile_with_retry(tile, "lsp-detr")
+                await segmentation._process_tile_with_retry(tile, "lsp-detr", "raw")
 
         # Should retry initial + len(retry_delays) times
         assert mock_process_tile.call_count == len(segmentation.retry_delays) + 1
@@ -231,7 +235,7 @@ class TestTileProcessingWithRetry:
         with patch.object(segmentation, "_process_tile", side_effect=track_concurrent):
             results = await asyncio.gather(
                 *[
-                    segmentation._process_tile_with_retry(tile, "lsp-detr")
+                    segmentation._process_tile_with_retry(tile, "lsp-detr", "raw")
                     for tile in tiles
                 ]
             )
@@ -255,7 +259,7 @@ class TestTileSizeSelection:
         segmentation.session.post = MagicMock()
         segmentation.session.post.return_value.__aenter__.return_value = mock_response
 
-        await segmentation._process_tile(tile, "lsp-detr")
+        await segmentation._process_tile(tile, "lsp-detr", "raw")
 
         # Should select first tile size >= 100, which is 256
         call_args = segmentation.session.post.call_args
@@ -273,7 +277,7 @@ class TestTileSizeSelection:
         segmentation.session.post = MagicMock()
         segmentation.session.post.return_value.__aenter__.return_value = mock_response
 
-        await segmentation._process_tile(tile, "lsp-detr")
+        await segmentation._process_tile(tile, "lsp-detr", "raw")
 
         # Should select first tile size >= 600, which is 1024
         call_args = segmentation.session.post.call_args
@@ -291,7 +295,7 @@ class TestTileSizeSelection:
         segmentation.session.post = MagicMock()
         segmentation.session.post.return_value.__aenter__.return_value = mock_response
 
-        await segmentation._process_tile(tile, "lsp-detr")
+        await segmentation._process_tile(tile, "lsp-detr", "raw")
 
         # Should select max tile size (2048) since 2500 > 2048
         call_args = segmentation.session.post.call_args
@@ -312,7 +316,7 @@ class TestTileSizeSelection:
             mock_process_tile.side_effect = ValueError("Invalid data")
 
             with pytest.raises(Exception, match="Failed after"):
-                await segmentation._process_tile_with_retry(tile, "lsp-detr")
+                await segmentation._process_tile_with_retry(tile, "lsp-detr", "raw")
 
         # Should retry len(retry_delays) + 1 times
         assert mock_process_tile.call_count == len(segmentation.retry_delays) + 1
@@ -332,4 +336,4 @@ class TestTileSizeSelection:
         segmentation.session.post.return_value.__aenter__.return_value = mock_response
 
         with pytest.raises(Exception, match="Failed after"):
-            await segmentation._process_tile_with_retry(tile, "lsp-detr")
+            await segmentation._process_tile_with_retry(tile, "lsp-detr", "raw")

@@ -80,7 +80,7 @@ async def async_tile_generator(
 @pytest.mark.asyncio
 async def test_unordered_streaming(mock_tiles):
     """Test unordered streaming processes tiles as they become available."""
-    seg = AsyncNucleiSegmentation()
+    seg = AsyncNucleiSegmentation(base_url="http://test")
     seg._session = cast("ClientSession", DummySession(delay=0.02))
     tile_gen = async_tile_generator(mock_tiles, delay=0.01)
     streamer = await seg(tile_gen, stream_mode="unordered")
@@ -100,7 +100,7 @@ async def test_unordered_streaming(mock_tiles):
 @pytest.mark.asyncio
 async def test_ordered_streaming(mock_tiles):
     """Test ordered streaming maintains the order of input tiles."""
-    seg = AsyncNucleiSegmentation()
+    seg = AsyncNucleiSegmentation(base_url="http://test")
     seg._session = cast("ClientSession", DummySession(delay=0.02))
     tile_gen = async_tile_generator(mock_tiles, delay=0.01)
     streamer = await seg(tile_gen, stream_mode="ordered")
@@ -146,7 +146,7 @@ async def test_ordered_streaming(mock_tiles):
 @pytest.mark.asyncio
 async def test_in_memory_small():
     """Test processing a single small image."""
-    seg = AsyncNucleiSegmentation()
+    seg = AsyncNucleiSegmentation(base_url="http://test")
     seg._session = cast("ClientSession", DummySession())
     img = np.zeros((128, 128, 3), dtype=np.uint8)  # fits in max tile
     result = cast("dict[str, Any]", await seg(img, "lsp-detr"))
@@ -157,7 +157,7 @@ async def test_in_memory_small():
 @pytest.mark.asyncio
 async def test_in_memory_large():
     """Test processing a large image that requires tiling."""
-    seg = AsyncNucleiSegmentation()
+    seg = AsyncNucleiSegmentation(base_url="http://test")
     seg._session = cast("ClientSession", DummySession())
     img = np.zeros((3000, 3000, 3), dtype=np.uint8)  # larger than max tile
     results = cast("list[dict[str, Any]]", await seg(img, "lsp-detr"))
