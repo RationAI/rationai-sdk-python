@@ -16,8 +16,10 @@ logger = logging.getLogger(__name__)
 async def stream_tiles(
     session: ClientSession,
     tile_generator: AsyncIterable[NDArray[np.uint8]],
-    model: str = "lsp-detr",
+    endpoint: str = "/lsp-detr",
     max_concurrent: int = 5,
+    base_url: str = "",
+    format: str = "raw",
 ) -> AsyncGenerator[Result, None]:
     """Stream tiles to the segmentation server asynchronously with concurrent processing.
 
@@ -26,8 +28,10 @@ async def stream_tiles(
     Args:
         session: aiohttp ClientSession
         tile_generator: async iterable of image tiles
-        model: model name
+        endpoint: API endpoint path (e.g., "/prostate" or "/lsp-detr")
         max_concurrent: maximum number of concurrent requests
+        base_url: base URL for the API (without trailing slash)
+        format: request format - "raw" for bytes, "json" for JSON payload
 
     Yields:
         Result objects as they complete (not in input order)
@@ -35,54 +39,43 @@ async def stream_tiles(
     Raises:
         Exception: if any tile processing fails
     """
-    segmenter = AsyncNucleiSegmentation(max_concurrent=max_concurrent)
+    segmenter = AsyncNucleiSegmentation(
+        base_url=base_url, max_concurrent=max_concurrent
+    )
     segmenter._session = session
+    segmenter._owns_session = False
 
-    pending = set()  # Set of active tasks
-    error: Exception | None = None  # Track first error to stop processing
+    pending: list[asyncio.Task] = []  # List of active tasks
 
     try:
         async for tile in tile_generator:
-            if error:  # Stop accepting new tiles if error occurred
-                break
-
-            task = asyncio.create_task(segmenter._process_tile_with_retry(tile, model))
-            pending.add(task)
+            task = asyncio.create_task(
+                segmenter._process_tile_with_retry(tile, endpoint, format)
+            )
+            pending.append(task)
 
             # Limit concurrent tasks - yield results as they complete
             if len(pending) >= max_concurrent:
-                done, pending = await asyncio.wait(
-                    pending, return_when=asyncio.FIRST_COMPLETED
+                done, _ = await asyncio.wait(
+                    set(pending), return_when=asyncio.FIRST_COMPLETED
                 )
+                pending = [t for t in pending if t not in done]
                 for completed_task in done:
-                    try:
-                        result = await completed_task
-                        yield result  # Yield immediately (unordered)
-                    except Exception as e:
-                        error = e
-                        for task in pending:
-                            task.cancel()
-                        raise
+                    result = completed_task.result()
+                    yield result  # Yield immediately (unordered)
 
         # Process remaining tasks after generator is exhausted
-        if not error:
-            while pending:
-                done, pending = await asyncio.wait(
-                    pending, return_when=asyncio.FIRST_COMPLETED
-                )
-                for completed_task in done:
-                    try:
-                        result = await completed_task
-                        yield result
-                    except Exception:
-                        for task in pending:
-                            task.cancel()
-                        raise
+        while pending:
+            done, _ = await asyncio.wait(
+                set(pending), return_when=asyncio.FIRST_COMPLETED
+            )
+            pending = [t for t in pending if t not in done]
+            for completed_task in done:
+                result = completed_task.result()
+                yield result
 
-    except asyncio.CancelledError:
-        logger.debug("Stream processing cancelled, cleaning up...")
+    except (asyncio.CancelledError, Exception):
+        logger.debug("Stream processing interrupted, cleaning up...")
         for task in pending:
             task.cancel()
-        if pending:
-            await asyncio.gather(*pending, return_exceptions=True)
         raise
