@@ -20,22 +20,25 @@ from rationai.clients.qc_client import QualityControl
 
 
 async def example_single_slide():
-    """Check quality of a single slide."""
+    """Check quality of a single slide with retry logic."""
     print("=== Single Slide QC Check ===\n")
     print(f"Connecting to: {os.getenv('RATIONAI_QC_URL', 'cluster DNS (default)')}\n")
 
     async with QualityControl(
-        request_timeout=300,
+        request_timeout=1800,  # 30 minutes
+        max_retries=5,  # Retry up to 5 times
+        backoff_base=2,  # Exponential backoff: 2^1, 2^2, 2^3 seconds
     ) as qc:
         print(f"Using QC base URL: {qc.base_url}")
         result = await qc.check_slide(
-            wsi_path="/path/to/slide.svs",  # path to your slide
-            output_path="/output/masks",  # path to save output masks
+            wsi_path="/mnt/data/Projects/Data/Public/prostate/PANDA/train_images/0a0f8e20b1222b69416301444b117678.tiff",
+            output_path="/tmp",
             mask_level=4,
             sample_level=0,
             check_residual=True,
             check_folding=True,
             check_focus=True,
+            wb_correction=False,  # Enable white balance correction if needed
         )
 
         print(f"Result: {result}")
@@ -50,4 +53,8 @@ if __name__ == "__main__":
     print("NOTE: For in-cluster use, no configuration needed.")
     print("      For local testing, see instructions at the top of this file.\n")
 
+    # Run single slide example
     asyncio.run(example_single_slide())
+
+    # Uncomment to run batch processing example
+    # asyncio.run(example_batch_processing())

@@ -8,6 +8,7 @@ This client handles slide quality checks including:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from pathlib import Path
@@ -52,16 +53,22 @@ class QualityControl:
         self,
         base_url: str | None = None,
         *,
-        request_timeout: int = 300,
+        request_timeout: int = 1800,  # 30 minutes
+        max_retries: int = 5,
+        backoff_base: int = 2,
     ):
-        """Initialize QC client (minimal).
+        """Initialize QC client.
 
         Args:
             base_url: Base URL of the QC service. If None, will use
                 environment variable RATIONAI_QC_URL if set; otherwise
                 defaults to cluster-internal service DNS.
             request_timeout: Timeout for single slide processing (seconds).
-                Default 300s (5 min) to handle Ray Serve cold start + processing.
+                Default 1800s (30 min) to handle Ray Serve cold start + processing.
+            max_retries: Maximum number of retry attempts for failed requests.
+                Default 5 attempts.
+            backoff_base: Base for exponential backoff in seconds.
+                Default 2 seconds (2^1, 2^2, 2^3, etc.).
         """
         if base_url is None:
             base_url = os.getenv(
@@ -73,6 +80,8 @@ class QualityControl:
         self._owns_session = True
 
         self.request_timeout = request_timeout
+        self.max_retries = max_retries
+        self.backoff_base = backoff_base
 
     @property
     def base_url(self) -> str:
@@ -111,8 +120,9 @@ class QualityControl:
         check_residual: bool = True,
         check_folding: bool = True,
         check_focus: bool = True,
+        wb_correction: bool = False,
     ) -> QCResult:
-        """Check quality of a single slide (single PUT request).
+        """Check quality of a single slide with automatic retry on failure.
 
         Args:
             wsi_path: Path to the whole slide image
@@ -122,6 +132,7 @@ class QualityControl:
             check_residual: Enable residual tissue detection
             check_folding: Enable folding artifact detection
             check_focus: Enable focus quality assessment
+            wb_correction: Enable white balance correction
 
         Returns:
             QCResult with status and response
@@ -134,23 +145,105 @@ class QualityControl:
             "check_residual": check_residual,
             "check_folding": check_folding,
             "check_focus": check_focus,
+            "wb_correction": wb_correction,
         }
 
         timeout = ClientTimeout(total=self.request_timeout)
 
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                async with self.session.put(
+                    self._base_url, json=data, timeout=timeout
+                ) as response:
+                    text = await response.text()
+
+                    # Retry on 500 Internal Server Error
+                    if response.status == 500 and attempt < self.max_retries:
+                        logger.warning(
+                            "Received status 500 for %s (attempt %d/%d), retrying...",
+                            Path(wsi_path).name,
+                            attempt,
+                            self.max_retries,
+                        )
+                        await self._backoff(attempt)
+                        continue
+
+                    return QCResult(response.status, text, str(wsi_path))
+
+            except (TimeoutError, ServerTimeoutError):
+                logger.error(
+                    "Request timed out after %d seconds for %s",
+                    self.request_timeout,
+                    Path(wsi_path).name,
+                )
+                return QCResult(-1, "Timeout", str(wsi_path))
+            except ClientError as e:
+                if attempt < self.max_retries:
+                    logger.warning(
+                        "Client error for %s (attempt %d/%d): %s, retrying...",
+                        Path(wsi_path).name,
+                        attempt,
+                        self.max_retries,
+                        e,
+                    )
+                    await self._backoff(attempt)
+                    continue
+                logger.error(
+                    "Client connection error for %s: %s", Path(wsi_path).name, e
+                )
+                return QCResult(-2, f"Client error: {e}", str(wsi_path))
+
+        # All retries exhausted
+        logger.error("All retry attempts failed for %s", Path(wsi_path).name)
+        return QCResult(-3, "All retry attempts failed", str(wsi_path))
+
+    async def generate_report(
+        self,
+        backgrounds: list[str | Path],
+        mask_dir: str | Path,
+        save_location: str | Path,
+        *,
+        compute_metrics: bool = True,
+    ) -> QCResult:
+        """Generate a QC report from processed slides.
+
+        Args:
+            backgrounds: List of paths to the background (slide) images
+            mask_dir: Directory containing the generated masks
+            save_location: Path where the report HTML will be saved
+            compute_metrics: Whether to compute quality metrics
+
+        Returns:
+            QCResult with status and response
+        """
+        data = {
+            "backgrounds": [str(bg) for bg in backgrounds],
+            "mask_dir": str(mask_dir),
+            "save_location": str(save_location),
+            "compute_metrics": compute_metrics,
+        }
+
+        url = f"{self._base_url}/report"
+        timeout = ClientTimeout(total=self.request_timeout)
+
         try:
-            async with self.session.put(
-                self._base_url, json=data, timeout=timeout
-            ) as response:
+            async with self.session.put(url, json=data, timeout=timeout) as response:
                 text = await response.text()
-                return QCResult(response.status, text, str(wsi_path))
+                return QCResult(response.status, text, str(save_location))
         except (TimeoutError, ServerTimeoutError):
             logger.error(
-                "Request timed out after %d seconds for %s",
-                self.request_timeout,
-                Path(wsi_path).name,
+                "Report generation timed out after %d seconds", self.request_timeout
             )
-            return QCResult(-1, "Timeout", str(wsi_path))
+            return QCResult(-1, "Timeout", str(save_location))
         except ClientError as e:
-            logger.error("Client connection error for %s: %s", Path(wsi_path).name, e)
-            return QCResult(-2, f"Client error: {e}", str(wsi_path))
+            logger.error("Client connection error during report generation: %s", e)
+            return QCResult(-2, f"Client error: {e}", str(save_location))
+
+    async def _backoff(self, attempt: int) -> None:
+        """Exponential backoff delay.
+
+        Args:
+            attempt: Current attempt number (1-indexed)
+        """
+        delay = self.backoff_base**attempt
+        await asyncio.sleep(delay)
