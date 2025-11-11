@@ -55,6 +55,3 @@ if __name__ == "__main__":
 
     # Run single slide example
     asyncio.run(example_single_slide())
-
-    # Uncomment to run batch processing example
-    # asyncio.run(example_batch_processing())
