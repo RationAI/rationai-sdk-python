@@ -78,6 +78,7 @@ class QualityControl:
         self._base_url = base_url.rstrip("/")
         self._session: ClientSession | None = None
         self._owns_session = True
+        self._semaphore = asyncio.Semaphore(4)
 
         self.request_timeout = request_timeout
         self.max_retries = max_retries
@@ -96,6 +97,11 @@ class QualityControl:
             )
         return self._session
 
+    @property
+    def semaphore(self) -> asyncio.Semaphore:
+        """Return the semaphore used for limiting concurrent requests."""
+        return self._semaphore
+
     async def __aenter__(self) -> QualityControl:
         if self._session is None:
             self._session = ClientSession()
@@ -110,7 +116,50 @@ class QualityControl:
             await self._session.close()
             self._session = None
 
-    async def check_slide(
+    async def check_multiple_slides(
+        self,
+        wsi_paths: list[str | Path],
+        output_path: str | Path,
+        *,
+        mask_level: int = 4,
+        sample_level: int = 0,
+        check_residual: bool = True,
+        check_folding: bool = True,
+        check_focus: bool = True,
+        wb_correction: bool = False,
+    ) -> list[QCResult]:
+        """Check quality of multiple slides concurrently.
+
+        Args:
+            wsi_paths: List of paths to whole slide images
+            output_path: Directory to save output masks
+            mask_level: Pyramid level for mask generation
+            sample_level: Pyramid level for sampling
+            check_residual: Enable residual tissue detection
+            check_folding: Enable folding artifact detection
+            check_focus: Enable focus quality assessment
+            wb_correction: Enable white balance correction
+
+        Returns:
+            List of QCResult objects for each slide
+        """
+        tasks = [
+            self.check_single_slide(
+                wsi_path,
+                output_path,
+                mask_level=mask_level,
+                sample_level=sample_level,
+                check_residual=check_residual,
+                check_folding=check_folding,
+                check_focus=check_focus,
+                wb_correction=wb_correction,
+            )
+            for wsi_path in wsi_paths
+        ]
+
+        return await asyncio.gather(*tasks)
+
+    async def check_single_slide(
         self,
         wsi_path: str | Path,
         output_path: str | Path,
@@ -152,9 +201,12 @@ class QualityControl:
 
         for attempt in range(1, self.max_retries + 1):
             try:
-                async with self.session.put(
-                    self._base_url, json=data, timeout=timeout
-                ) as response:
+                async with (
+                    self.semaphore,
+                    self.session.put(
+                        self._base_url, json=data, timeout=timeout
+                    ) as response,
+                ):
                     text = await response.text()
 
                     # Retry on 500 Internal Server Error
