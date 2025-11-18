@@ -11,4 +11,8 @@ dependencies = [
     "openslide-python>=1.4.2",
     "Pillow>=10.0.0",
     "ratiopath>=0.1.0",
+    "tenacity>=9.1.2",
 ]
+
+[dependency-groups]
+dev = ["mypy>=1.18.2", "ruff>=0.14.5"]
