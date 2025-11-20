@@ -1,10 +1,12 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urljoin
 
 from aiohttp import ClientSession
 from requests import Response, Session
 
-from rationai.client import SyncClient
+
+if TYPE_CHECKING:
+    from rationai.client import SyncClient
 
 
 class AsyncAPIResource:
@@ -18,7 +20,7 @@ class AsyncAPIResource:
 
 
 class SyncAPIResource:
-    def __init__(self, client: SyncClient) -> None:
+    def __init__(self, client: "SyncClient") -> None:
         self._session: Session = client
         self._base_url: str = client.base_url
 

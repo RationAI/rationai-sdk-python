@@ -60,12 +60,14 @@ class AsyncQualityControl(AsyncAPIResource):
         }
 
         async with self._put(
-            "http://rayservice-qc-serve-svc.rationai-jobs-ns.svc.cluster.local:8000/",
+            "",
             json=data,
             timeout=timeout,
-            raise_for_status=True,
+            raise_for_status=False,
         ) as response:
-            return await response.text()
+            text = await response.text()
+            response.raise_for_status()
+            return text
 
     async def generate_report(
         self,
@@ -119,7 +121,22 @@ class SyncQualityControl(SyncAPIResource):
         check_focus: bool = True,
         wb_correction: bool = False,
     ) -> str:
-        """Check quality of a single slide with automatic retry on failure."""
+        """Check quality of a single slide with automatic retry on failure.
+
+        Args:
+            wsi_path: Path to the whole slide image
+            output_path: Directory to save output masks
+            timeout: Optional timeout for the request
+            mask_level: Pyramid level for mask generation
+            sample_level: Pyramid level for sampling
+            check_residual: Enable residual tissue detection
+            check_folding: Enable folding artifact detection
+            check_focus: Enable focus quality assessment
+            wb_correction: Enable white balance correction
+
+        Returns:
+            QCResult with status and response
+        """
         data = {
             "wsi_path": str(wsi_path),
             "output_path": str(output_path),
@@ -131,12 +148,7 @@ class SyncQualityControl(SyncAPIResource):
             "wb_correction": wb_correction,
         }
 
-        response = self._put(
-            "http://rayservice-qc-serve-svc.rationai-jobs-ns.svc.cluster.local:8000/",
-            json=data,
-            timeout=timeout,
-        )
-        response.raise_for_status()
+        response = self._put("", json=data, timeout=timeout, raise_for_status=False)
         return response.text
 
     def generate_report(
@@ -147,7 +159,18 @@ class SyncQualityControl(SyncAPIResource):
         timeout: float | None = None,
         compute_metrics: bool = True,
     ) -> str:
-        """Generate a QC report from processed slides."""
+        """Generate a QC report from processed slides.
+
+        Args:
+            backgrounds: List of paths to the background (slide) images
+            mask_dir: Directory containing the generated masks
+            save_location: Path where the report HTML will be saved
+            timeout: Optional timeout for the request
+            compute_metrics: Whether to compute quality metrics
+
+        Returns:
+            QCResult with status and response
+        """
         data = {
             "backgrounds": [str(bg) for bg in backgrounds],
             "mask_dir": str(mask_dir),
@@ -156,5 +179,4 @@ class SyncQualityControl(SyncAPIResource):
         }
 
         response = self._put("report", json=data, timeout=timeout)
-        response.raise_for_status()
         return response.text
