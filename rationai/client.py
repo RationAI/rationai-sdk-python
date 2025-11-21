@@ -1,41 +1,18 @@
+from __future__ import annotations
+
+from functools import cached_property
+from typing import TYPE_CHECKING
+
 from aiohttp import ClientSession
 from requests import Session
 
-from rationai.resources.models import AsyncModels, Models
-from rationai.resources.qc import AsyncQualityControl, QualityControl
 
-
-class AsyncClient(ClientSession):
-    """Async client for RationAI services."""
-
-    def __init__(
-        self,
-        base_url: str = "http://rayservice-model-serve-svc.rationai-jobs-ns.svc.cluster.local:8000",
-        *args,
-        **kwargs,
-    ) -> None:
-        super().__init__(*args, base_url=base_url, **kwargs)
-        self._qc: AsyncQualityControl | None = None
-        self._models: AsyncModels | None = None
-
-    @property
-    def models(self) -> AsyncModels:
-        """Access the models resource."""
-        if self._models is None:
-            self._models = AsyncModels(self)
-        return self._models
-
-    @property
-    def qc(self) -> AsyncQualityControl:
-        """Access the quality control resource."""
-        if self._qc is None:
-            self._qc = AsyncQualityControl(self)
-        return self._qc
+if TYPE_CHECKING:
+    from rationai.resources.models import AsyncModels, Models
+    from rationai.resources.qc import AsyncQualityControl, QualityControl
 
 
 class Client(Session):
-    """Sync client for RationAI services."""
-
     def __init__(
         self,
         base_url: str = "http://rayservice-model-serve-svc.rationai-jobs-ns.svc.cluster.local:8000",
@@ -44,19 +21,37 @@ class Client(Session):
     ) -> None:
         super().__init__(*args, **kwargs)
         self.base_url = base_url.rstrip("/")
-        self._models: Models | None = None
-        self._qc: QualityControl | None = None
 
-    @property
+    @cached_property
     def models(self) -> Models:
-        """Access the models resource."""
-        if self._models is None:
-            self._models = Models(self)
-        return self._models
+        from rationai.resources.models import Models
 
-    @property
+        return Models(self)
+
+    @cached_property
     def qc(self) -> QualityControl:
-        """Access the quality control resource."""
-        if self._qc is None:
-            self._qc = QualityControl(self)
-        return self._qc
+        from rationai.resources.qc import QualityControl
+
+        return QualityControl(self)
+
+
+class AsyncClient(ClientSession):
+    def __init__(
+        self,
+        base_url: str = "http://rayservice-model-serve-svc.rationai-jobs-ns.svc.cluster.local:8000",
+        *args,
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, base_url=base_url, **kwargs)
+
+    @cached_property
+    def models(self) -> AsyncModels:
+        from rationai.resources.models import AsyncModels
+
+        return AsyncModels(self)
+
+    @cached_property
+    def qc(self) -> AsyncQualityControl:
+        from rationai.resources.qc import AsyncQualityControl
+
+        return AsyncQualityControl(self)
