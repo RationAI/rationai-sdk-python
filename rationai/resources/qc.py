@@ -10,7 +10,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from rationai._resource import AsyncAPIResource, SyncAPIResource
+from rationai._resource import APIResource, AsyncAPIResource
 
 
 class AsyncQualityControl(AsyncAPIResource):
@@ -102,7 +102,7 @@ class AsyncQualityControl(AsyncAPIResource):
             return await response.text()
 
 
-class SyncQualityControl(SyncAPIResource):
+class QualityControl(APIResource):
     @retry(
         retry=retry_if_exception_type(Timeout),
         stop=stop_after_attempt(3),

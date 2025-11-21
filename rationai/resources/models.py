@@ -2,7 +2,7 @@ import numpy as np
 from aiohttp import ClientTimeout
 from numpy.typing import NDArray
 
-from rationai._resource import AsyncAPIResource, SyncAPIResource
+from rationai._resource import APIResource, AsyncAPIResource
 
 
 class AsyncModels(AsyncAPIResource):
@@ -23,7 +23,7 @@ class AsyncModels(AsyncAPIResource):
             return await response.json()
 
 
-class SyncModels(SyncAPIResource):
+class Models(APIResource):
     def classify_image(
         self, model: str, image: NDArray[np.uint8], timeout: float | None = None
     ):

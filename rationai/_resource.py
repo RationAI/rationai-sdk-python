@@ -6,7 +6,7 @@ from requests import Response, Session
 
 
 if TYPE_CHECKING:
-    from rationai.client import SyncClient
+    from rationai.client import Client
 
 
 class AsyncAPIResource:
@@ -19,8 +19,8 @@ class AsyncAPIResource:
         self._delete = client.delete
 
 
-class SyncAPIResource:
-    def __init__(self, client: "SyncClient") -> None:
+class APIResource:
+    def __init__(self, client: "Client") -> None:
         self._session: Session = client
         self._base_url: str = client.base_url
 

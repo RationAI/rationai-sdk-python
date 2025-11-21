@@ -1,8 +1,8 @@
 from aiohttp import ClientSession
 from requests import Session
 
-from rationai.resources.models import AsyncModels, SyncModels
-from rationai.resources.qc import AsyncQualityControl, SyncQualityControl
+from rationai.resources.models import AsyncModels, Models
+from rationai.resources.qc import AsyncQualityControl, QualityControl
 
 
 class AsyncClient(ClientSession):
@@ -33,7 +33,7 @@ class AsyncClient(ClientSession):
         return self._qc
 
 
-class SyncClient(Session):
+class Client(Session):
     """Sync client for RationAI services."""
 
     def __init__(
@@ -44,19 +44,19 @@ class SyncClient(Session):
     ) -> None:
         super().__init__(*args, **kwargs)
         self.base_url = base_url.rstrip("/")
-        self._models: SyncModels | None = None
-        self._qc: SyncQualityControl | None = None
+        self._models: Models | None = None
+        self._qc: QualityControl | None = None
 
     @property
-    def models(self) -> SyncModels:
+    def models(self) -> Models:
         """Access the models resource."""
         if self._models is None:
-            self._models = SyncModels(self)
+            self._models = Models(self)
         return self._models
 
     @property
-    def qc(self) -> SyncQualityControl:
+    def qc(self) -> QualityControl:
         """Access the quality control resource."""
         if self._qc is None:
-            self._qc = SyncQualityControl(self)
+            self._qc = QualityControl(self)
         return self._qc
