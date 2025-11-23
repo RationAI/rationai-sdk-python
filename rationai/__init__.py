@@ -1,4 +1,4 @@
-from rationai.client import AsyncClient
+from rationai.client import AsyncClient, Client
 
 
-__all__ = ["AsyncClient"]
+__all__ = ["AsyncClient", "Client"]
