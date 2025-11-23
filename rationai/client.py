@@ -1,8 +1,16 @@
+from __future__ import annotations
+
+from functools import cached_property
+from typing import TYPE_CHECKING
+
 from aiohttp import ClientSession
 from requests import Session
 
-from rationai.resources.models import AsyncModels, Models
-from rationai.resources.qc import AsyncQualityControl, QualityControl
+
+if TYPE_CHECKING:
+    from rationai.resources.models import AsyncModels, Models
+    from rationai.resources.qc import AsyncQualityControl, QualityControl
+
 from rationai.resources.service_configs import SERVICES
 
 
@@ -50,19 +58,17 @@ class AsyncClient(ClientSession):
         self._qc: AsyncQualityControl | None = None
         self._models: AsyncModels | None = None
 
-    @property
+    @cached_property
     def models(self) -> AsyncModels:
-        """Access the models resource."""
-        if self._models is None:
-            self._models = AsyncModels(self)
-        return self._models
+        from rationai.resources.models import AsyncModels
 
-    @property
+        return AsyncModels(self)
+
+    @cached_property
     def qc(self) -> AsyncQualityControl:
-        """Access the quality control resource."""
-        if self._qc is None:
-            self._qc = AsyncQualityControl(self)
-        return self._qc
+        from rationai.resources.qc import AsyncQualityControl
+
+        return AsyncQualityControl(self)
 
 
 class Client(Session):
@@ -111,16 +117,14 @@ class Client(Session):
         self._models: Models | None = None
         self._qc: QualityControl | None = None
 
-    @property
+    @cached_property
     def models(self) -> Models:
-        """Access the models resource."""
-        if self._models is None:
-            self._models = Models(self)
-        return self._models
+        from rationai.resources.models import Models
 
-    @property
+        return Models(self)
+
+    @cached_property
     def qc(self) -> QualityControl:
-        """Access the quality control resource."""
-        if self._qc is None:
-            self._qc = QualityControl(self)
-        return self._qc
+        from rationai.resources.qc import QualityControl
+
+        return QualityControl(self)
