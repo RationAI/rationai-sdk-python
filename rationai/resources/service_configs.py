@@ -11,8 +11,6 @@ through the RationAI client. Each service configuration specifies:
 
 from __future__ import annotations
 
-import os
-
 
 class ServiceConfig:
     """Configuration for a specific service endpoint."""
@@ -38,10 +36,7 @@ class ServiceConfig:
 
 SERVICES: dict[str, ServiceConfig] = {
     "prostate": ServiceConfig(
-        base_url=os.getenv(
-            "RATIONAI_PROSTATE_URL",
-            "http://rayservice-prostate-serve-svc.rationai-notebooks-ns.svc.cluster.local:8000",
-        ),
+        base_url="http://rayservice-models-serve-svc.rationai-notebooks-ns.svc.cluster.local:8000",
         service_type="model",
         endpoint="/prostate",
         format="json",
