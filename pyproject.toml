@@ -4,7 +4,11 @@ version = "0.1.0"
 description = "Python SDK for RationAI pathology image analysis"
 readme = "README.md"
 requires-python = ">=3.11"
-authors = [{ name = "Jiří Štípek", email = "567776@mail.muni.cz" }]
+authors = [
+    { name = "Jiří Štípek", email = "567776@mail.muni.cz" },
+    { name = "Matěj Pekár", email = "matejpekar@mail.muni.cz" },
+]
+
 dependencies = [
     "aiohttp>=3.12.15",
     "numpy>=2.3.2",
