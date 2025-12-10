@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncIterable, Iterable
+from collections.abc import AsyncIterator, Iterable
 from dataclasses import asdict
 from os import PathLike
 
@@ -133,7 +133,7 @@ class AsyncQualityControl(AsyncAPIResource):
         config: SlideCheckConfig | None = None,
         timeout: TimeoutTypes | UseClientDefault = 3600,
         max_concurrent: int = 4,
-    ) -> AsyncIterable[SlideCheckResult]:
+    ) -> AsyncIterator[SlideCheckResult]:
         """Check quality of multiple slides.
 
         Args:
