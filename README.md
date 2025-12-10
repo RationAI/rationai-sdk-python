@@ -1,93 +1,199 @@
 # RationAI Python SDK
 
-
-
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://gitlab.ics.muni.cz/rationai/infrastructure/rationai-sdk-python.git
-git branch -M master
-git push -uf origin master
-```
-
-## Integrate with your tools
-
-- [ ] [Set up project integrations](https://gitlab.ics.muni.cz/rationai/infrastructure/rationai-sdk-python/-/settings/integrations)
-
-## Collaborate with your team
-
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+A Python SDK for interacting with RationAI pathology image analysis services. This library provides both synchronous and asynchronous clients for image classification, segmentation, and quality control operations.
 
 ## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+```bash
+pip install git+https://gitlab.ics.muni.cz/rationai/infrastructure/rationai-sdk-python.git
+```
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+## Quick Start
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+### Synchronous Client
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+```python
+import rationai
+import numpy as np
+from PIL import Image
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+# Initialize the client
+client = rationai.Client()
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+# Load an image
+image = Image.open("path/to/image.jpg")
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+# Classify the image
+result = client.models.classify_image("model-name", image)
+print(result)
 
-## License
-For open source projects, say how it is licensed.
+# Segment the image
+segmentation = client.models.segment_image("segmentation-model", image)
+print(segmentation.shape)  # (num_classes, height, width)
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+client.close()
+```
+
+### Asynchronous Client
+
+```python
+import asyncio
+import rationai
+
+async def main():
+    async with rationai.AsyncClient() as client:
+        # Your async operations here
+        result = await client.models.classify_image("model-name", image)
+        print(result)
+
+asyncio.run(main())
+```
+
+## API Reference
+
+### Models (`client.models`)
+
+#### `classify_image(model: str, image: Image | NDArray[np.uint8]) -> float | dict[str, float]`
+
+Classify an image using the specified model.
+
+**Parameters:**
+- `model`: The name of the model to use for classification
+- `image`: The image to classify (must be uint8 RGB image)
+- `timeout`: Optional timeout for the request (defaults to 100 seconds)
+
+**Returns:** Classification result as a float (binary) or dict of probabilities per class
+
+#### `segment_image(model: str, image: Image | NDArray[np.uint8]) -> NDArray[np.float16]`
+
+Segment an image using the specified model.
+
+**Parameters:**
+- `model`: The name of the model to use for segmentation
+- `image`: The image to segment (must be uint8 RGB image)
+- `timeout`: Optional timeout for the request (defaults to 100 seconds)
+
+**Returns:** Segmentation mask as numpy array with shape `(num_classes, height, width)`
+
+### Quality Control (`client.qc`)
+
+#### `check_slide(wsi_path, output_path, config=None, timeout=3600) -> str`
+
+Check quality of a whole slide image.
+
+**Parameters:**
+- `wsi_path`: Path to the whole slide image
+- `output_path`: Directory to save output masks
+- `config`: Optional `SlideCheckConfig` for the quality check
+- `timeout`: Optional timeout for the request (defaults to 3600 seconds)
+
+**Returns:** xOpat link containing the processed WSI for visual inspection of generated masks
+
+#### `check_slides(wsi_paths, output_path, config=None, timeout=3600, max_concurrent=4)` (async only)
+
+Check quality of multiple slides concurrently.
+
+**Parameters:**
+- `wsi_paths`: List of paths to whole slide images
+- `output_path`: Directory to save output masks
+- `config`: Optional `SlideCheckConfig` for the quality check
+- `timeout`: Optional timeout for each request (defaults to 3600 seconds)
+- `max_concurrent`: Maximum number of concurrent slide checks (defaults to 4)
+
+**Yields:** `SlideCheckResult` for each slide containing the path, xOpat URL (if successful), and any error information
+
+#### `generate_report(backgrounds, mask_dir, save_location, compute_metrics=True, timeout=None) -> None`
+
+Generate a QC report from processed slides.
+
+**Parameters:**
+- `backgrounds`: List of paths to background (slide) images
+- `mask_dir`: Directory containing generated masks
+- `save_location`: Path where the report HTML will be saved
+- `compute_metrics`: Whether to compute quality metrics (default: True)
+- `timeout`: Optional timeout for the request
+
+For more details, refer to the [QC documentation](https://quality-control-rationai-digital-pathology-quali-82f7255ed88b44.gitlab-pages.ics.muni.cz).
+
+## Managing Concurrency
+
+To avoid overloading the server, it's important to limit concurrent requests. Here are recommended approaches:
+
+### Using `asyncio.Semaphore`
+
+Limit the number of concurrent requests:
+
+```python
+import asyncio
+import rationai
+
+async def process_images_with_semaphore(image_paths, model_name, max_concurrent):
+    semaphore = asyncio.Semaphore(max_concurrent)
+    
+    async def bounded_segment(client, path):
+        async with semaphore:
+            image = load_image(path)
+            return await client.models.segment_image(model_name, image)
+    
+    async with rationai.AsyncClient() as client:
+        tasks = [bounded_segment(client, path) for path in image_paths]
+        results = await asyncio.gather(*tasks)
+    
+    return results
+
+# Process up to 16 images concurrently
+results = asyncio.run(process_images_with_semaphore(image_paths, "model-name", max_concurrent=16))
+```
+
+### Using `asyncio.as_completed()`
+
+Process results as they complete:
+
+```python
+import asyncio
+from rationai import AsyncClient
+
+async def process_with_as_completed(image_paths, model_name, max_concurrent):
+    semaphore = asyncio.Semaphore(max_concurrent)
+    
+    async def bounded_request(client, path):
+        async with semaphore:
+            image = load_image(path)
+            return path, await client.models.segment_image(model_name, image)
+    
+    async with AsyncClient(models_base_url="http://localhost:8000") as client:
+        tasks = {asyncio.create_task(bounded_request(client, path)): path 
+                 for path in image_paths}
+        
+        for future in asyncio.as_completed(tasks):
+            path, result = await future
+            print(f"Processed {path}")
+            # Process result immediately without waiting for all tasks
+
+asyncio.run(process_with_as_completed(image_paths, "model-name", max_concurrent=16))
+```
+
+
+Start with a conservative limit and monitor server resources to find the optimal value for your setup.
+
+## Configuration
+
+### Custom Timeouts
+
+```python
+from rationai import AsyncClient
+
+async with AsyncClient(timeout=300) as client:  # 300 second timeout
+    result = await client.models.segment_image("model", image, timeout=60)
+```
+
+### Custom Base URLs
+
+```python
+from rationai import Client
+
+client = Client(
+    models_base_url="http://custom-models-server:8000",
+    qc_base_url="http://custom-qc-server:8000"
+)
+```
