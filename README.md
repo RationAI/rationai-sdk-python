@@ -58,6 +58,7 @@ asyncio.run(main())
 Classify an image using the specified model.
 
 **Parameters:**
+
 - `model`: The name of the model to use for classification
 - `image`: The image to classify (must be uint8 RGB image)
 - `timeout`: Optional timeout for the request (defaults to 100 seconds)
@@ -69,6 +70,7 @@ Classify an image using the specified model.
 Segment an image using the specified model.
 
 **Parameters:**
+
 - `model`: The name of the model to use for segmentation
 - `image`: The image to segment (must be uint8 RGB image)
 - `timeout`: Optional timeout for the request (defaults to 100 seconds)
@@ -82,6 +84,7 @@ Segment an image using the specified model.
 Check quality of a whole slide image.
 
 **Parameters:**
+
 - `wsi_path`: Path to the whole slide image
 - `output_path`: Directory to save output masks
 - `config`: Optional `SlideCheckConfig` for the quality check
@@ -94,6 +97,7 @@ Check quality of a whole slide image.
 Check quality of multiple slides concurrently.
 
 **Parameters:**
+
 - `wsi_paths`: List of paths to whole slide images
 - `output_path`: Directory to save output masks
 - `config`: Optional `SlideCheckConfig` for the quality check
@@ -107,6 +111,7 @@ Check quality of multiple slides concurrently.
 Generate a QC report from processed slides.
 
 **Parameters:**
+
 - `backgrounds`: List of paths to background (slide) images
 - `mask_dir`: Directory containing generated masks
 - `save_location`: Path where the report HTML will be saved
@@ -129,16 +134,16 @@ import rationai
 
 async def process_images_with_semaphore(image_paths, model_name, max_concurrent):
     semaphore = asyncio.Semaphore(max_concurrent)
-    
+
     async def bounded_segment(client, path):
         async with semaphore:
-            image = load_image(path)
+            image = Image.open(path).convert("RGB")
             return await client.models.segment_image(model_name, image)
-    
+
     async with rationai.AsyncClient() as client:
         tasks = [bounded_segment(client, path) for path in image_paths]
         results = await asyncio.gather(*tasks)
-    
+
     return results
 
 # Process up to 16 images concurrently
@@ -155,16 +160,16 @@ from rationai import AsyncClient
 
 async def process_with_as_completed(image_paths, model_name, max_concurrent):
     semaphore = asyncio.Semaphore(max_concurrent)
-    
+
     async def bounded_request(client, path):
         async with semaphore:
-            image = load_image(path)
+            image = Image.open(path).convert("RGB")
             return path, await client.models.segment_image(model_name, image)
-    
+
     async with AsyncClient(models_base_url="http://localhost:8000") as client:
-        tasks = {asyncio.create_task(bounded_request(client, path)): path 
+        tasks = {asyncio.create_task(bounded_request(client, path)): path
                  for path in image_paths}
-        
+
         for future in asyncio.as_completed(tasks):
             path, result = await future
             print(f"Processed {path}")
@@ -172,7 +177,6 @@ async def process_with_as_completed(image_paths, model_name, max_concurrent):
 
 asyncio.run(process_with_as_completed(image_paths, "model-name", max_concurrent=16))
 ```
-
 
 Start with a conservative limit and monitor server resources to find the optimal value for your setup.
 
