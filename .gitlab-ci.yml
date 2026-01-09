@@ -9,17 +9,11 @@ stages:
   - test
   - docs
 
-pages:
+docs:build:
   stage: docs
   image: python:3.12
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   script:
     - python -m pip install --upgrade pip
     - python -m pip install uv
     - uv sync --group docs
-    - uv run mkdocs build --strict --clean --site-dir public
-  artifacts:
-    paths:
-      - public
+    - uv run mkdocs build --strict --clean
