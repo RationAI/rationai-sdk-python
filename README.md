@@ -75,6 +75,25 @@ Segment an image using the specified model.
 
 **Returns:** Segmentation mask as numpy array with shape `(num_classes, height, width)`
 
+
+### Slide (`client.slide`)
+
+#### `heatmap(model: str, slide_path: str, tissue_mask_path: str, output_path: str, stride_fraction: float = 0.5, output_bigtiff_tile_height: int = 512, output_bigtiff_tile_width: int = 512, timeout: int = 1000) -> str`
+
+Generate a heatmap for a whole slide image using the specified model.
+
+**Parameters:**
+- `model`: The name of the model to use for heatmap generation
+- `slide_path`: Path to the whole slide image
+- `tissue_mask_path`: Path to the tissue mask for the slide
+- `output_path`: Directory to save the generated heatmap tiles
+- `stride_fraction`: Fraction of tile size to use as stride between tiles (default: 0.5)
+- `output_bigtiff_tile_height`: Height of output heatmap tiles in pixels (default: 512)
+- `output_bigtiff_tile_width`: Width of output heatmap tiles in pixels (default: 512)
+- `timeout`: Optional timeout for the request (defaults to 1000 seconds)
+
+**Returns:** The path to the generated heatmap. Should match the output_path provided.
+
 ### Quality Control (`client.qc`)
 
 #### `check_slide(wsi_path, output_path, config=None, timeout=3600) -> str`
