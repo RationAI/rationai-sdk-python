@@ -7,3 +7,13 @@ include:
 stages:
   - lint
   - test
+  - docs
+
+docs:build:
+  stage: docs
+  image: python:3.12
+  script:
+    - python -m pip install --upgrade pip
+    - python -m pip install uv
+    - uv sync --group docs
+    - uv run mkdocs build --strict --clean
