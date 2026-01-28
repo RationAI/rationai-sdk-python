@@ -8,4 +8,4 @@ on:
 
 jobs:
   python-lint:
-    uses: RationAI/.github/workflows/python-lint.yml@main
+    uses: RationAI/.github/.github/workflows/python-lint.yml@main
