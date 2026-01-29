@@ -5,7 +5,7 @@ A Python SDK for interacting with RationAI pathology image analysis services. Th
 ## Installation
 
 ```bash
-pip install git+https://gitlab.ics.muni.cz/rationai/infrastructure/rationai-sdk-python.git
+pip install git+https://github.com/RationAI/rationai-sdk-python.git
 ```
 
 ## Quick Start
