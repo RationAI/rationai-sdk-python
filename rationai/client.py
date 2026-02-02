@@ -11,6 +11,7 @@ from httpx._types import TimeoutTypes
 if TYPE_CHECKING:
     from rationai.resources.models import AsyncModels, Models
     from rationai.resources.qc import AsyncQualityControl, QualityControl
+    from rationai.resources.slide import AsyncSlide, Slide
 
 
 class Client(httpx.Client):
@@ -37,6 +38,12 @@ class Client(httpx.Client):
         from rationai.resources.models import Models
 
         return Models(self, base_url=self.models_base_url)
+
+    @cached_property
+    def slide(self) -> Slide:
+        from rationai.resources.slide import Slide
+
+        return Slide(self, base_url=self.models_base_url)
 
     @cached_property
     def qc(self) -> QualityControl:
@@ -69,6 +76,12 @@ class AsyncClient(httpx.AsyncClient):
         from rationai.resources.models import AsyncModels
 
         return AsyncModels(self, base_url=self.models_base_url)
+
+    @cached_property
+    def slide(self) -> AsyncSlide:
+        from rationai.resources.slide import AsyncSlide
+
+        return AsyncSlide(self, base_url=self.models_base_url)
 
     @cached_property
     def qc(self) -> AsyncQualityControl:

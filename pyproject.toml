@@ -1,5 +1,5 @@
 [project]
-name = "rationai"
+name = "rationai-sdk"
 version = "0.1.0"
 description = "Python SDK for RationAI pathology image analysis"
 readme = "README.md"
