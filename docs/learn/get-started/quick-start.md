@@ -114,10 +114,10 @@ import asyncio
 from PIL import Image
 import rationai
 
-async def classify_many(paths: list[str], model: str, *, max_concurrent: int = 8) -> list[object]:
+async def classify_many(paths: list[str], model: str, *, max_concurrent: int = 8) -> list[float | dict[str, float]]:
     sem = asyncio.Semaphore(max_concurrent)
 
-    async def one(client: rationai.AsyncClient, path: str) -> object:
+    async def one(client: rationai.AsyncClient, path: str) -> float | dict[str, float]:
         async with sem:
             image = Image.open(path).convert("RGB")
             return await client.models.classify_image(model, image)
