@@ -21,7 +21,7 @@ from PIL import Image
 client = rationai.Client()
 
 # Load an image
-image = Image.open("path/to/image.jpg")
+image = Image.open("path/to/image.jpg").convert("RGB")
 
 # Classify the image
 result = client.models.classify_image("model-name", image)
@@ -77,7 +77,6 @@ Segment an image using the specified model.
 
 **Returns:** Segmentation mask as numpy array with shape `(num_classes, height, width)`
 
-
 ### Slide (`client.slide`)
 
 #### `heatmap(model: str, slide_path: str, tissue_mask_path: str, output_path: str, stride_fraction: float = 0.5, output_bigtiff_tile_height: int = 512, output_bigtiff_tile_width: int = 512, timeout: int = 1000) -> str`
@@ -85,6 +84,7 @@ Segment an image using the specified model.
 Generate a heatmap for a whole slide image using the specified model.
 
 **Parameters:**
+
 - `model`: The name of the model to use for heatmap generation
 - `slide_path`: Path to the whole slide image
 - `tissue_mask_path`: Path to the tissue mask for the slide
