@@ -1,6 +1,6 @@
 site_name: RationAI Python SDK
-site_url: https://gitlab.ics.muni.cz/rationai/infrastructure/rationai-sdk-python
-repo_url: https://gitlab.ics.muni.cz/rationai/infrastructure/rationai-sdk-python
+site_url: https://github.com/RationAI/rationai-sdk-python
+repo_url: https://github.com/RationAI/rationai-sdk-python
 repo_name: rationai-sdk-python
 
 nav:
