@@ -100,9 +100,12 @@ import rationai
 
 image = Image.open("path/to/image.jpg").convert("RGB")
 
-async with rationai.AsyncClient() as client:
-    result = await client.models.classify_image("model-name", image)
-    print(result)
+async def main():
+    async with rationai.AsyncClient() as client:
+        result = await client.models.classify_image("model-name", image)
+        print(result)
+
+asyncio.run(main())
 ```
 
 ### Concurrency with the async client
