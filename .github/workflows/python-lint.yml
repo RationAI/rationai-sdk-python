@@ -7,5 +7,5 @@ on:
   workflow_dispatch:
 
 jobs:
-  python-lint:
+  run:
     uses: RationAI/.github/.github/workflows/python-lint.yml@main
