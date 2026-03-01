@@ -1,0 +1,58 @@
+site_name: RationAI Python SDK
+repo_url: https://github.com/RationAI/rationai-sdk-python
+repo_name: rationai-sdk-python
+
+nav:
+  - Home: index.md
+  - Learn:
+      - Get started:
+          - Quick start: learn/get-started/quick-start.md
+      - How it works: learn/how-it-works.md
+  - Reference:
+      - Client: reference/client.md
+      - Resources:
+          - Models: reference/resources/models.md
+          - Quality control: reference/resources/qc.md
+      - Types:
+          - QC types: reference/types/qc.md
+
+theme:
+  name: material
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - content.code.annotate
+    - content.code.copy
+    - content.code.select
+    - navigation.indexes
+    - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.footer
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_if_no_docstring: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
+
+extra:
+  version:
+    provider: mike
