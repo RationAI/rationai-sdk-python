@@ -52,6 +52,24 @@ Signature:
 - `timeout`: Optional request timeout (defaults to the client’s timeout).
 - Returns: `float16` NumPy array with shape `(num_classes, height, width)`.
 
+### Slide
+
+#### `client.slide.heatmap`
+
+Signature:
+
+`heatmap(model: str, slide_path: str, tissue_mask_path: str, output_path: str, stride_fraction: float = 0.5, output_bigtiff_tile_height: int = 512, output_bigtiff_tile_width: int = 512, timeout=1000) -> str`
+
+- `model`: Model identifier appended to `models_base_url`.
+- `slide_path`: Path to the whole-slide image (evaluated by the service).
+- `tissue_mask_path`: Path to the tissue mask for the slide (evaluated by the service).
+- `output_path`: Path where the output heatmap BigTIFF will be saved (evaluated by the service).
+- `stride_fraction`: Fraction of the tile size used as stride between tiles (default: `0.5`).
+- `output_bigtiff_tile_height`: Tile height of the generated BigTIFF heatmap in pixels (default: `512`).
+- `output_bigtiff_tile_width`: Tile width of the generated BigTIFF heatmap in pixels (default: `512`).
+- `timeout`: Optional request timeout (default is 1000 seconds).
+- Returns: path to the generated heatmap (matches `output_path`).
+
 ### Quality control (QC)
 
 #### `client.qc.check_slide`
