@@ -11,6 +11,7 @@ Both clients expose the same high-level resources:
 
 - `client.models` for image classification/segmentation
 - `client.qc` for quality control endpoints
+- `client.slide` for slide-level operations (e.g. heatmaps)
 
 ### What’s the actual difference?
 
