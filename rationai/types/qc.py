@@ -7,20 +7,18 @@ class SlideCheckConfig:
     """Configuration for slide quality checks.
 
     Attributes:
-        mask_level: Pyramid level for mask generation.
-        sample_level: Pyramid level for sampling.
-        check_residual: Enable residual tissue detection.
-        check_folding: Enable folding artifact detection.
-        check_focus: Enable focus quality assessment.
+        check_residual: Enable residual artifacts detection.
+        check_folding: Enable folding artifacts detection.
+        check_blur: Enable blur artifacts detection.
         wb_correction: Enable white balance correction.
+        mask_dir: Optional directory with pre-computed tissue masks.
     """
 
-    mask_level: int = 3
-    sample_level: int = 1
     check_residual: bool = True
     check_folding: bool = True
-    check_focus: bool = True
+    check_blur: bool = True
     wb_correction: bool = False
+    mask_dir: PathLike[str] | str | None = None
 
 
 @dataclass
