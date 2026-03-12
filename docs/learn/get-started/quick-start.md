@@ -11,6 +11,7 @@ Both clients expose the same high-level resources:
 
 - `client.models` for image classification/segmentation
 - `client.qc` for quality control endpoints
+- `client.slide` for slide-level operations (e.g. heatmaps)
 
 ### What’s the actual difference?
 
@@ -26,57 +27,7 @@ Both clients expose the same high-level resources:
 
 For details on what is sent over the wire (compression, payloads), see: [How it works](../how-it-works.md).
 
-## API at a glance
-
-### Models
-
-#### `client.models.classify_image`
-
-Signature:
-
-`classify_image(model: str, image: PIL.Image.Image | numpy.typing.NDArray[numpy.uint8], timeout=...) -> float | dict[str, float]`
-
-- `model`: Model name / path appended to `models_base_url`.
-- `image`: **uint8 RGB** image (PIL or NumPy array of shape `(H, W, 3)`).
-- `timeout`: Optional request timeout (defaults to the client’s timeout).
-- Returns: classification result from JSON (often `float` for binary, or `dict[class, prob]`).
-
-#### `client.models.segment_image`
-
-Signature:
-
-`segment_image(model: str, image: PIL.Image.Image | numpy.typing.NDArray[numpy.uint8], timeout=...) -> numpy.typing.NDArray[numpy.float16]`
-
-- `model`: Model name / path appended to `models_base_url`.
-- `image`: **uint8 RGB** image (PIL or NumPy array of shape `(H, W, 3)`).
-- `timeout`: Optional request timeout (defaults to the client’s timeout).
-- Returns: `float16` NumPy array with shape `(num_classes, height, width)`.
-
-### Quality control (QC)
-
-#### `client.qc.check_slide`
-
-Signature:
-
-`check_slide(wsi_path: os.PathLike[str] | str, output_path: os.PathLike[str] | str, config: SlideCheckConfig | None = None, timeout=3600) -> str`
-
-- `wsi_path`: Path to a whole-slide image (evaluated by the QC service).
-- `output_path`: Directory where the QC service should write masks (evaluated by the QC service).
-- `config`: Optional `SlideCheckConfig` (see reference types).
-- `timeout`: Request timeout (default is 3600 seconds).
-- Returns: xOpat URL as plain text.
-
-#### `client.qc.generate_report`
-
-Signature:
-
-`generate_report(backgrounds: Iterable[os.PathLike[str] | str], mask_dir: os.PathLike[str] | str, save_location: os.PathLike[str] | str, compute_metrics: bool = True, timeout=...) -> None`
-
-- `backgrounds`: Iterable of slide/background image paths.
-- `mask_dir`: Directory containing generated masks.
-- `save_location`: Path where the report HTML should be written.
-- `compute_metrics`: Whether to compute aggregated metrics (default: `True`).
-- Returns: nothing.
+For the full API reference, see the [reference documentation](../../reference/client.md).
 
 ## Synchronous client
 
