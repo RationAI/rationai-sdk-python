@@ -88,8 +88,9 @@ class Models(APIResource):
         compressed_data = lz4.frame.compress(data)
         response = self._post(model, data=compressed_data, timeout=timeout)
         response.raise_for_status()
-        np_dtype = np.float16 if output_dtype == "float16" else np.float32
-        return np.array(response.json(), dtype=np_dtype)
+        if output_dtype not in ("float16", "float32"):
+            raise ValueError('output_dtype must be one of "float16" or "float32"')
+        return np.array(response.json(), dtype=np.dtype(output_dtype))
 
 
 class AsyncModels(AsyncAPIResource):
