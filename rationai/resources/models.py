@@ -1,11 +1,11 @@
-from typing import Any, Literal
+from typing import Any
 
 import lz4.frame
 import numpy as np
 from httpx import USE_CLIENT_DEFAULT
 from httpx._client import UseClientDefault
 from httpx._types import TimeoutTypes
-from numpy.typing import NDArray
+from numpy.typing import DTypeLike, NDArray
 from PIL.Image import Image
 
 from rationai._resource import APIResource, AsyncAPIResource
@@ -70,7 +70,7 @@ class Models(APIResource):
         self,
         model: str,
         image: Image | NDArray[np.uint8],
-        output_dtype: Literal["float16", "float32"] = "float32",
+        output_dtype: DTypeLike = np.float32,
         timeout: TimeoutTypes | UseClientDefault = USE_CLIENT_DEFAULT,
     ) -> NDArray[np.floating[Any]]:
         """Compute an embedding vector for an image using the specified model.
@@ -78,7 +78,7 @@ class Models(APIResource):
         Args:
             model: The name of the model to use for embedding.
             image: The image to embed. It must be uint8 RGB image.
-            output_dtype: Output numpy dtype for embeddings ("float16" or "float32").
+            output_dtype: Output numpy dtype for embeddings (e.g. np.float16, np.float32).
             timeout: Optional timeout for the request.
 
         Returns:
@@ -88,8 +88,7 @@ class Models(APIResource):
         compressed_data = lz4.frame.compress(data)
         response = self._post(model, data=compressed_data, timeout=timeout)
         response.raise_for_status()
-        np_dtype = np.float16 if output_dtype == "float16" else np.float32
-        return np.array(response.json(), dtype=np_dtype)
+        return np.array(response.json(), dtype=output_dtype)
 
 
 class AsyncModels(AsyncAPIResource):
@@ -151,7 +150,7 @@ class AsyncModels(AsyncAPIResource):
         self,
         model: str,
         image: Image | NDArray[np.uint8],
-        output_dtype: Literal["float16", "float32"] = "float32",
+        output_dtype: DTypeLike = np.float32,
         timeout: TimeoutTypes | UseClientDefault = USE_CLIENT_DEFAULT,
     ) -> NDArray[np.floating[Any]]:
         """Compute an embedding vector for an image using the specified model.
@@ -159,7 +158,7 @@ class AsyncModels(AsyncAPIResource):
         Args:
             model: The name of the model to use for embedding.
             image: The image to embed. It must be uint8 RGB image.
-            output_dtype: Output numpy dtype for embeddings ("float16" or "float32").
+            output_dtype: Output numpy dtype for embeddings (e.g. np.float16, np.float32).
             timeout: Optional timeout for the request.
 
         Returns:
@@ -169,5 +168,4 @@ class AsyncModels(AsyncAPIResource):
         compressed_data = lz4.frame.compress(data)
         response = await self._post(model, data=compressed_data, timeout=timeout)
         response.raise_for_status()
-        np_dtype = np.float16 if output_dtype == "float16" else np.float32
-        return np.array(response.json(), dtype=np_dtype)
+        return np.array(response.json(), dtype=output_dtype)
