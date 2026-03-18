@@ -13,6 +13,7 @@ nav:
       - Resources:
           - Models: reference/resources/models.md
           - Quality control: reference/resources/qc.md
+          - Slide: reference/resources/slide.md
       - Types:
           - QC types: reference/types/qc.md
 
