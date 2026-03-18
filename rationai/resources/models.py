@@ -1,22 +1,14 @@
-from typing import Any, cast
+from typing import cast
 
 import lz4.frame
 import numpy as np
-from httpx import USE_CLIENT_DEFAULT, Response
+from httpx import USE_CLIENT_DEFAULT
 from httpx._client import UseClientDefault
 from httpx._types import TimeoutTypes
-from numpy.typing import DTypeLike, NDArray
+from numpy.typing import NDArray
 from PIL.Image import Image
 
 from rationai._resource import APIResource, AsyncAPIResource
-
-
-def _parse_embedding_response[DType: np.generic](
-    response: Response,
-    output_dtype: type[DType],
-) -> NDArray[DType]:
-    payload = lz4.frame.decompress(response.content)
-    return cast("NDArray[DType]", np.frombuffer(payload, dtype=np.dtype(output_dtype)))
 
 
 class Models(APIResource):
@@ -37,8 +29,8 @@ class Models(APIResource):
             (float | dict[str, float]): The classification result as a single float
                 (for binary classification) or probabilities for each class.
         """
-        data = image.tobytes()
-        compressed_data = lz4.frame.compress(data)
+        image_array = np.asarray(image, dtype=np.uint8)
+        compressed_data = lz4.frame.compress(image_array.tobytes())
         response = self._post(model, data=compressed_data, timeout=timeout)
         response.raise_for_status()
         return response.json()
@@ -65,8 +57,8 @@ class Models(APIResource):
         else:
             h, w = image.shape[:2]
 
-        data = image.tobytes()
-        compressed_data = lz4.frame.compress(data)
+        image_array = np.asarray(image, dtype=np.uint8)
+        compressed_data = lz4.frame.compress(image_array.tobytes())
         response = self._post(model, data=compressed_data, timeout=timeout)
         response.raise_for_status()
 
@@ -74,13 +66,13 @@ class Models(APIResource):
             lz4.frame.decompress(response.content), dtype=np.float16
         ).reshape(-1, h, w)
 
-    def embed_image(
+    def embed_image[DType: np.generic](
         self,
         model: str,
         image: Image | NDArray[np.uint8],
-        output_dtype: DTypeLike = np.float32,
+        output_dtype: type[DType] = np.float32,
         timeout: TimeoutTypes | UseClientDefault = USE_CLIENT_DEFAULT,
-    ) -> NDArray[np.floating[Any]]:
+    ) -> NDArray[DType]:
         """Compute an embedding vector for an image using the specified model.
 
         Args:
@@ -90,7 +82,7 @@ class Models(APIResource):
             timeout: Optional timeout for the request.
 
         Returns:
-            NDArray[np.floating[Any]]: The embedding vector as a 1-D numpy array.
+            NDArray[DType]: The embedding vector as a 1-D numpy array.
         """
         image_array = np.asarray(image, dtype=np.uint8)
         compressed_data = lz4.frame.compress(image_array.tobytes())
@@ -101,10 +93,19 @@ class Models(APIResource):
             timeout=timeout,
         )
         response.raise_for_status()
-        return cast(
-            "NDArray[np.floating[Any]]",
-            _parse_embedding_response(response, np.dtype(output_dtype).type),
+
+        payload = lz4.frame.decompress(response.content)
+        embedding = np.frombuffer(payload, dtype=np.dtype(output_dtype))
+
+        response_shape = response.headers.get("x-output-shape") or response.headers.get(
+            "x-array-shape"
         )
+        if response_shape:
+            shape = tuple(int(d) for d in response_shape.split(",") if d)
+            if shape:
+                embedding = embedding.reshape(shape)
+
+        return cast("NDArray[DType]", embedding)
 
 
 class AsyncModels(AsyncAPIResource):
@@ -125,8 +126,8 @@ class AsyncModels(AsyncAPIResource):
             (float | dict[str, float]): The classification result as a single float
                 (for binary classification) or probabilities for each class.
         """
-        data = image.tobytes()
-        compressed_data = lz4.frame.compress(data)
+        image_array = np.asarray(image, dtype=np.uint8)
+        compressed_data = lz4.frame.compress(image_array.tobytes())
         response = await self._post(model, data=compressed_data, timeout=timeout)
         response.raise_for_status()
         return response.json()
@@ -153,8 +154,8 @@ class AsyncModels(AsyncAPIResource):
         else:
             h, w = image.shape[:2]
 
-        data = image.tobytes()
-        compressed_data = lz4.frame.compress(data)
+        image_array = np.asarray(image, dtype=np.uint8)
+        compressed_data = lz4.frame.compress(image_array.tobytes())
         response = await self._post(model, data=compressed_data, timeout=timeout)
         response.raise_for_status()
 
@@ -162,13 +163,13 @@ class AsyncModels(AsyncAPIResource):
             lz4.frame.decompress(response.content), dtype=np.float16
         ).reshape(-1, h, w)
 
-    async def embed_image(
+    async def embed_image[DType: np.generic](
         self,
         model: str,
         image: Image | NDArray[np.uint8],
-        output_dtype: DTypeLike = np.float32,
+        output_dtype: type[DType] = np.float32,
         timeout: TimeoutTypes | UseClientDefault = USE_CLIENT_DEFAULT,
-    ) -> NDArray[np.floating[Any]]:
+    ) -> NDArray[DType]:
         """Compute an embedding vector for an image using the specified model.
 
         Args:
@@ -178,18 +179,29 @@ class AsyncModels(AsyncAPIResource):
             timeout: Optional timeout for the request.
 
         Returns:
-            NDArray[np.floating[Any]]: The embedding vector as a 1-D numpy array.
+            NDArray[DType]: The embedding vector as a 1-D numpy array.
         """
         image_array = np.asarray(image, dtype=np.uint8)
         compressed_data = lz4.frame.compress(image_array.tobytes())
         response = await self._post(
             model,
             data=compressed_data,
-            headers={"x-output-dtype": np.dtype(output_dtype).name},
+            headers={
+                "x-output-dtype": np.dtype(output_dtype).name
+            },  # send output dtype hint to server
             timeout=timeout,
         )
         response.raise_for_status()
-        return cast(
-            "NDArray[np.floating[Any]]",
-            _parse_embedding_response(response, np.dtype(output_dtype).type),
-        )
+
+        payload = lz4.frame.decompress(response.content)
+        embedding = np.frombuffer(payload, dtype=np.dtype(output_dtype))
+
+        response_shape = response.headers.get("x-output-shape") or response.headers.get(
+            "x-array-shape"
+        )  # check for shape hint in response headers and reshape if present
+        if response_shape:
+            shape = tuple(int(d) for d in response_shape.split(",") if d)
+            if shape:
+                embedding = embedding.reshape(shape)
+
+        return cast("NDArray[DType]", embedding)
