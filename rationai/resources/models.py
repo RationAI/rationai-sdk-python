@@ -11,15 +11,12 @@ from PIL.Image import Image
 from rationai._resource import APIResource, AsyncAPIResource
 
 
-def _parse_embedding_response(
+def _parse_embedding_response[DType: np.generic](
     response: Response,
-    output_dtype: DTypeLike,
-) -> NDArray[np.floating[Any]]:
+    output_dtype: type[DType],
+) -> NDArray[DType]:
     payload = lz4.frame.decompress(response.content)
-    return cast(
-        "NDArray[np.floating[Any]]",
-        np.frombuffer(payload, dtype=np.dtype(output_dtype)),
-    )
+    return cast("NDArray[DType]", np.frombuffer(payload, dtype=np.dtype(output_dtype)))
 
 
 class Models(APIResource):
@@ -104,7 +101,10 @@ class Models(APIResource):
             timeout=timeout,
         )
         response.raise_for_status()
-        return _parse_embedding_response(response, output_dtype)
+        return cast(
+            "NDArray[np.floating[Any]]",
+            _parse_embedding_response(response, np.dtype(output_dtype).type),
+        )
 
 
 class AsyncModels(AsyncAPIResource):
@@ -189,4 +189,7 @@ class AsyncModels(AsyncAPIResource):
             timeout=timeout,
         )
         response.raise_for_status()
-        return _parse_embedding_response(response, output_dtype)
+        return cast(
+            "NDArray[np.floating[Any]]",
+            _parse_embedding_response(response, np.dtype(output_dtype).type),
+        )
