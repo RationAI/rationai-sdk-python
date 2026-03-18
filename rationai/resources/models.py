@@ -1,14 +1,25 @@
-from typing import Any
+from typing import Any, cast
 
 import lz4.frame
 import numpy as np
-from httpx import USE_CLIENT_DEFAULT
+from httpx import USE_CLIENT_DEFAULT, Response
 from httpx._client import UseClientDefault
 from httpx._types import TimeoutTypes
 from numpy.typing import DTypeLike, NDArray
 from PIL.Image import Image
 
 from rationai._resource import APIResource, AsyncAPIResource
+
+
+def _parse_embedding_response(
+    response: Response,
+    output_dtype: DTypeLike,
+) -> NDArray[np.floating[Any]]:
+    payload = lz4.frame.decompress(response.content)
+    return cast(
+        "NDArray[np.floating[Any]]",
+        np.frombuffer(payload, dtype=np.dtype(output_dtype)),
+    )
 
 
 class Models(APIResource):
@@ -84,11 +95,16 @@ class Models(APIResource):
         Returns:
             NDArray[np.floating[Any]]: The embedding vector as a 1-D numpy array.
         """
-        data = image.tobytes()
-        compressed_data = lz4.frame.compress(data)
-        response = self._post(model, data=compressed_data, timeout=timeout)
+        image_array = np.asarray(image, dtype=np.uint8)
+        compressed_data = lz4.frame.compress(image_array.tobytes())
+        response = self._post(
+            model,
+            data=compressed_data,
+            headers={"x-output-dtype": np.dtype(output_dtype).name},
+            timeout=timeout,
+        )
         response.raise_for_status()
-        return np.array(response.json(), dtype=output_dtype)
+        return _parse_embedding_response(response, output_dtype)
 
 
 class AsyncModels(AsyncAPIResource):
@@ -164,8 +180,13 @@ class AsyncModels(AsyncAPIResource):
         Returns:
             NDArray[np.floating[Any]]: The embedding vector as a 1-D numpy array.
         """
-        data = image.tobytes()
-        compressed_data = lz4.frame.compress(data)
-        response = await self._post(model, data=compressed_data, timeout=timeout)
+        image_array = np.asarray(image, dtype=np.uint8)
+        compressed_data = lz4.frame.compress(image_array.tobytes())
+        response = await self._post(
+            model,
+            data=compressed_data,
+            headers={"x-output-dtype": np.dtype(output_dtype).name},
+            timeout=timeout,
+        )
         response.raise_for_status()
-        return np.array(response.json(), dtype=output_dtype)
+        return _parse_embedding_response(response, output_dtype)
