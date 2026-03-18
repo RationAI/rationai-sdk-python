@@ -70,7 +70,7 @@ class Models(APIResource):
         self,
         model: str,
         image: Image | NDArray[np.uint8],
-        output_dtype: type[DType] = np.float32,
+        output_dtype: type[DType] | None = None,
         timeout: TimeoutTypes | UseClientDefault = USE_CLIENT_DEFAULT,
     ) -> NDArray[DType]:
         """Compute an embedding vector for an image using the specified model.
@@ -84,6 +84,9 @@ class Models(APIResource):
         Returns:
             NDArray[DType]: The embedding vector as a 1-D numpy array.
         """
+        if output_dtype is None:
+            output_dtype = cast("type[DType]", np.float32)
+
         image_array = np.asarray(image, dtype=np.uint8)
         compressed_data = lz4.frame.compress(image_array.tobytes())
         response = self._post(
@@ -167,7 +170,7 @@ class AsyncModels(AsyncAPIResource):
         self,
         model: str,
         image: Image | NDArray[np.uint8],
-        output_dtype: type[DType] = np.float32,
+        output_dtype: type[DType] | None = None,
         timeout: TimeoutTypes | UseClientDefault = USE_CLIENT_DEFAULT,
     ) -> NDArray[DType]:
         """Compute an embedding vector for an image using the specified model.
@@ -181,6 +184,9 @@ class AsyncModels(AsyncAPIResource):
         Returns:
             NDArray[DType]: The embedding vector as a 1-D numpy array.
         """
+        if output_dtype is None:
+            output_dtype = cast("type[DType]", np.float32)
+
         image_array = np.asarray(image, dtype=np.uint8)
         compressed_data = lz4.frame.compress(image_array.tobytes())
         response = await self._post(
