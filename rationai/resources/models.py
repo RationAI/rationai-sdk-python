@@ -94,9 +94,8 @@ class Models(APIResource):
         payload = lz4.frame.decompress(response.content)
         embedding = np.frombuffer(payload, dtype=output_dtype)
 
-        response_shape = response.headers.get("x-output-shape")
-        if response_shape:
-            embedding = embedding.reshape(eval(response_shape))
+        response_shape = response.headers["x-output-shape"]
+        embedding = embedding.reshape(eval(response_shape))
 
         return cast("NDArray[DType]", embedding)
 
@@ -184,8 +183,7 @@ class AsyncModels(AsyncAPIResource):
         payload = lz4.frame.decompress(response.content)
         embedding = np.frombuffer(payload, dtype=output_dtype)
 
-        response_shape = response.headers.get("x-output-shape")
-        if response_shape:
-            embedding = embedding.reshape(eval(response_shape))
+        response_shape = response.headers["x-output-shape"]
+        embedding = embedding.reshape(eval(response_shape))
 
         return cast("NDArray[DType]", embedding)
