@@ -80,7 +80,8 @@ class Models(APIResource):
             timeout: Optional timeout for the request.
 
         Returns:
-            NDArray[DType]: The embedding vector as a 1-D numpy array.
+            NDArray[DType]: The embedding array reshaped according to
+                the `x-output-shape` response header.
         """
         compressed_data = lz4.frame.compress(image.tobytes())
         response = self._post(
@@ -169,7 +170,8 @@ class AsyncModels(AsyncAPIResource):
             timeout: Optional timeout for the request.
 
         Returns:
-            NDArray[DType]: The embedding vector as a 1-D numpy array.
+            NDArray[DType]: The embedding array reshaped according to
+                the `x-output-shape` response header.
         """
         compressed_data = lz4.frame.compress(image.tobytes())
         response = await self._post(
