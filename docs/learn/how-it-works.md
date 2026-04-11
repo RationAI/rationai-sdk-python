@@ -37,11 +37,20 @@ The request path is literally the `model` string you pass in, joined to `models_
 
 Important: the SDK sends only the raw pixel bytes. It does **not** send image metadata such as width/height/shape, color space, file name, or format.
 
+For `client.models.embed_image(model, image, ...)`:
+
+1. The input image is serialized with `image.tobytes()`.
+2. Bytes are compressed with **LZ4 frame**.
+3. The request includes `x-output-dtype` to let the service return the desired numeric type.
+4. Additional keyword headers are supported and sent as `x-*` headers (e.g. `pool_tokens="false"` becomes `x-pool-tokens: false`; do not include the `x_` prefix in the argument name).
+
 ### What the SDK expects back
 
 - **Classification**: JSON (`response.json()`), typically a float (binary) or a mapping of class → probability.
 - **Segmentation**: a binary payload (response body) that is LZ4-compressed float16 data.
   The SDK decompresses it, interprets it as `np.float16`, and reshapes it to `(num_classes, height, width)`.
+- **Embedding**: an LZ4-compressed binary payload plus an `x-output-shape` header,
+  used to reshape the output array.
 
 The SDK determines `height` and `width` from the input image:
 
