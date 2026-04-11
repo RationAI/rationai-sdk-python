@@ -80,8 +80,8 @@ class Models(APIResource):
             output_dtype: Output numpy dtype for embeddings (e.g. np.float16, np.float32).
             timeout: Optional timeout for the request.
             **headers: Additional x- headers. Keyword underscores are converted
-                to hyphens, e.g. pool_tokens="false" becomes
-                pool-tokens: false.
+                to hyphens and prefixed with 'x-', e.g. pool_tokens="false"
+                becomes x-pool-tokens: false.
 
         Returns:
             NDArray[DType]: The embedding array reshaped according to
