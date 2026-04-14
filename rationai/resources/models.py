@@ -70,6 +70,7 @@ class Models(APIResource):
         image: Image | NDArray[np.uint8],
         output_dtype: type[DType] = np.float32,  # type: ignore[assignment]
         timeout: TimeoutTypes | UseClientDefault = USE_CLIENT_DEFAULT,
+        **headers: str,
     ) -> NDArray[DType]:
         """Compute an embedding vector for an image using the specified model.
 
@@ -78,16 +79,24 @@ class Models(APIResource):
             image: The image to embed. It must be uint8 RGB image.
             output_dtype: Output numpy dtype for embeddings (e.g. np.float16, np.float32).
             timeout: Optional timeout for the request.
+            **headers: Additional x- headers. Keyword underscores are converted
+                to hyphens and prefixed with 'x-', e.g. pool_tokens="false"
+                becomes x-pool-tokens: false.
 
         Returns:
             NDArray[DType]: The embedding array reshaped according to
                 the `x-output-shape` response header.
         """
         compressed_data = lz4.frame.compress(image.tobytes())
+        request_headers = {"x-output-dtype": np.dtype(output_dtype).name}
+        request_headers.update(
+            {f"x-{k.replace('_', '-')}": v for k, v in headers.items()}
+        )
+
         response = self._post(
             model,
             data=compressed_data,
-            headers={"x-output-dtype": np.dtype(output_dtype).name},
+            headers=request_headers,
             timeout=timeout,
         )
         response.raise_for_status()
@@ -160,6 +169,7 @@ class AsyncModels(AsyncAPIResource):
         image: Image | NDArray[np.uint8],
         output_dtype: type[DType] = np.float32,  # type: ignore[assignment]
         timeout: TimeoutTypes | UseClientDefault = USE_CLIENT_DEFAULT,
+        **headers: str,
     ) -> NDArray[DType]:
         """Compute an embedding vector for an image using the specified model.
 
@@ -168,16 +178,24 @@ class AsyncModels(AsyncAPIResource):
             image: The image to embed. It must be uint8 RGB image.
             output_dtype: Output numpy dtype for embeddings (e.g. np.float16, np.float32).
             timeout: Optional timeout for the request.
+            **headers: Additional x- headers. Keyword underscores are converted
+                to hyphens and prefixed with 'x-', e.g. pool_tokens="false"
+                becomes x-pool-tokens: false.
 
         Returns:
             NDArray[DType]: The embedding array reshaped according to
                 the `x-output-shape` response header.
         """
         compressed_data = lz4.frame.compress(image.tobytes())
+        request_headers = {"x-output-dtype": np.dtype(output_dtype).name}
+        request_headers.update(
+            {f"x-{k.replace('_', '-')}": v for k, v in headers.items()}
+        )
+
         response = await self._post(
             model,
             data=compressed_data,
-            headers={"x-output-dtype": np.dtype(output_dtype).name},
+            headers=request_headers,
             timeout=timeout,
         )
         response.raise_for_status()
