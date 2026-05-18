@@ -12,6 +12,9 @@ class SlideCheckConfig:
         check_blur: Enable blur artifacts detection.
         wb_correction: Enable white balance correction.
         mask_dir: Optional directory with pre-computed tissue masks.
+        store_masks_at_original_resolution: Whether resolution
+            of the stored masks matches resolution of the level
+            the WSI was samples from. If False, the masks are sub-sampled.
     """
 
     check_residual: bool = True
@@ -19,6 +22,7 @@ class SlideCheckConfig:
     check_blur: bool = True
     wb_correction: bool = False
     mask_dir: PathLike[str] | str | None = None
+    store_masks_at_original_resolution: bool = False
 
 
 @dataclass
