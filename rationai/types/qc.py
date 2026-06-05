@@ -11,18 +11,18 @@ class SlideCheckConfig:
         check_folding: Enable folding artifacts detection.
         check_blur: Enable blur artifacts detection.
         wb_correction: Enable white balance correction.
-        mask_dir: Optional directory with pre-computed tissue masks.
-        store_masks_at_original_resolution: Whether resolution
-            of the stored masks matches resolution of the level
-            the WSI was samples from. If False, the masks are sub-sampled.
+        subsample_masks: Whether to sub-sample the produced masks.
+            If False, the masks will be stored at the same resolution
+            as the input WSI is processed at.
+        tissue_mask_dir: Optional directory with pre-computed tissue masks.
     """
 
     check_residual: bool = True
     check_folding: bool = True
     check_blur: bool = True
     wb_correction: bool = False
-    mask_dir: PathLike[str] | str | None = None
-    store_masks_at_original_resolution: bool = False
+    subsample_masks: bool = True
+    tissue_mask_dir: PathLike[str] | str | None = None
 
 
 @dataclass
