@@ -2,6 +2,10 @@ from dataclasses import dataclass
 from os import PathLike
 
 
+StainVector = tuple[float, float, float]
+"""Type for representing a single stain vector."""
+
+
 @dataclass
 class SlideCheckConfig:
     """Configuration for slide quality checks.
@@ -23,6 +27,15 @@ class SlideCheckConfig:
     wb_correction: bool = False
     subsample_masks: bool = True
     tissue_mask_dir: PathLike[str] | str | None = None
+
+
+@dataclass
+class EstimateStainingResult:
+    wsi_path: PathLike[str] | str
+    stain1: StainVector | None = None
+    stain2: StainVector | None = None
+    error: str | None = None
+    success: bool = False
 
 
 @dataclass

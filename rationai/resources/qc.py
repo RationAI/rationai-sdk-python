@@ -9,7 +9,18 @@ from httpx._types import TimeoutTypes
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from rationai._resource import APIResource, AsyncAPIResource
-from rationai.types import SlideCheckConfig, SlideCheckResult
+from rationai.types import (
+    EstimateStainingResult,
+    SlideCheckConfig,
+    SlideCheckResult,
+    StainVector,
+)
+
+
+def _as_stain_vector(values: list[float]) -> StainVector:
+    """Converts a list of floats to a StainVector."""
+    a, b, c = values
+    return (a, b, c)
 
 
 def _is_500_error(exception: BaseException) -> bool:
@@ -55,6 +66,40 @@ class QualityControl(APIResource):
         )
         response.raise_for_status()
         return response.text
+
+    @retry(
+        retry=retry_if_exception(_is_500_error),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+    )
+    def estimate_staining(
+        self,
+        wsi_path: PathLike[str] | str,
+        output_path: PathLike[str] | str | None = None,
+        timeout: TimeoutTypes | UseClientDefault = 600,
+    ) -> tuple[StainVector, StainVector]:
+        """Estimate two dominant staining vectors for a single slide.
+
+        Args:
+            wsi_path: Path to the whole slide image.
+            output_path: Optional directory where the reference region image will be saved.
+            timeout: Optional timeout for the request.
+
+        Returns:
+            A tuple containing the estimated stains.
+        """
+        response = self._put(
+            "staining",
+            json={
+                "wsi_path": str(wsi_path),
+                "output_path": str(output_path) if output_path is not None else None,
+            },
+            timeout=timeout,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        return (_as_stain_vector(data["stain1"]), _as_stain_vector(data["stain2"]))
 
     def generate_report(
         self,
@@ -151,6 +196,12 @@ class AsyncQualityControl(AsyncAPIResource):
             try:
                 url = await self.check_slide(path, output_path, config, timeout)
                 return SlideCheckResult(path, xopat_url=url, success=True)
+
+            except HTTPStatusError as e:
+                code, reason = e.response.status_code, e.response.reason_phrase
+                error_msg = f"HTTP Error {code} ({reason}): {e.response.text}"
+                return SlideCheckResult(path, error=error_msg, success=False)
+
             except Exception as e:
                 return SlideCheckResult(path, error=str(e), success=False)
 
@@ -164,6 +215,93 @@ class AsyncQualityControl(AsyncAPIResource):
                     yield await d
 
             pending.add(asyncio.create_task(safe_check(path)))
+
+        for task in asyncio.as_completed(pending):
+            yield await task
+
+    @retry(
+        retry=retry_if_exception(_is_500_error),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+    )
+    async def estimate_staining(
+        self,
+        wsi_path: PathLike[str] | str,
+        output_path: PathLike[str] | str | None = None,
+        timeout: TimeoutTypes | UseClientDefault = 600,
+    ) -> tuple[StainVector, StainVector]:
+        """Estimate two dominant staining vectors for a single slide.
+
+        Args:
+            wsi_path: Path to the whole slide image.
+            output_path: Optional directory where the reference region image will be saved.
+            timeout: Optional timeout for the request.
+
+        Returns:
+            A tuple containing the estimated stains.
+        """
+        response = await self._put(
+            "staining",
+            json={
+                "wsi_path": str(wsi_path),
+                "output_path": str(output_path) if output_path is not None else None,
+            },
+            timeout=timeout,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        return (_as_stain_vector(data["stain1"]), _as_stain_vector(data["stain2"]))
+
+    async def estimate_stainings(
+        self,
+        wsi_paths: Iterable[PathLike[str] | str],
+        output_path: PathLike[str] | str | None = None,
+        timeout: TimeoutTypes | UseClientDefault = 600,
+        max_concurrent: int = 4,
+    ) -> AsyncIterator[EstimateStainingResult]:
+        """Estimate two dominant staining vectors for multiple slides.
+
+        Args:
+            wsi_paths: List of paths to the whole slide images.
+            output_path: Optional directory where the images of reference regions will be saved.
+            timeout: Optional timeout for the request.
+            max_concurrent: Maximum number of concurrent staining estimations.
+
+        Yields:
+            An asynchronous generator yielding EstimateStainingResult for each slide.
+        """
+
+        async def safe_estimate(path: PathLike[str] | str) -> EstimateStainingResult:
+            try:
+                stain1, stain2 = await self.estimate_staining(
+                    path, output_path, timeout
+                )
+
+                return EstimateStainingResult(
+                    path, stain1=stain1, stain2=stain2, success=True
+                )
+
+            except HTTPStatusError as e:
+                code, reason = e.response.status_code, e.response.reason_phrase
+                error_msg = f"HTTP Error {code} ({reason}): {e.response.text}"
+                return EstimateStainingResult(path, error=error_msg, success=False)
+
+            except Exception as e:
+                return EstimateStainingResult(path, error=str(e), success=False)
+
+        pending: set[asyncio.Task[EstimateStainingResult]] = set()
+
+        for path in wsi_paths:
+            if len(pending) >= max_concurrent:
+                done, pending = await asyncio.wait(
+                    pending, return_when=asyncio.FIRST_COMPLETED
+                )
+
+                for d in done:
+                    yield await d
+
+            pending.add(asyncio.create_task(safe_estimate(path)))
 
         for task in asyncio.as_completed(pending):
             yield await task
